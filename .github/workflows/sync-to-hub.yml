@@ -16,5 +16,5 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git push https://Nehira:$HF_TOKEN@huggingface.co/spaces/Nehira/nehira-brain main
+          git push --force https://Nehira:$HF_TOKEN@huggingface.co/spaces/Nehira/nehira-brain main
 
