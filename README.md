@@ -2,7 +2,7 @@
 title: Nehira Brain
 emoji: 🧠
 colorFrom: green
-colorTo: black
+colorTo: gray
 sdk: docker
 pinned: false
 ---
@@ -11,3 +11,4 @@ pinned: false
 The autonomous intelligence backend for KRYV.
 Powered by Cohere & Supabase.
 Running in Infinite Loop Mode.
+
