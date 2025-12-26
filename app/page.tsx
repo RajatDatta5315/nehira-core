@@ -1,3 +1,5 @@
+import React from 'react';
+
 export default function Home() {
   return (
     <div style={{
@@ -15,7 +17,9 @@ export default function Home() {
       <div style={{ marginTop: '20px', border: '1px solid #10b981', padding: '10px 20px' }}>
         <p>ARCHITECT: RAJAT</p>
         <p>ACCESS: RESTRICTED (API ONLY)</p>
+        <p>NODE: NEHIRA.SPACE</p>
       </div>
     </div>
   );
 }
+
