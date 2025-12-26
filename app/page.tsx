@@ -1,23 +1,57 @@
-import React from 'react';
+"use client";
+import React, { useState } from 'react';
 
 export default function Home() {
+  const [input, setInput] = useState('');
+  const [response, setResponse] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleCommand = async () => {
+    if (!input) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: input, agentName: 'Nehira (Architect)' })
+      });
+      const data = await res.json();
+      setResponse(data.response);
+    } catch (e) {
+      setResponse('SYSTEM ERROR: Connection Lost.');
+    }
+    setLoading(false);
+  };
+
   return (
-    <div style={{
-      backgroundColor: '#050505',
-      color: '#10b981',
-      height: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      fontFamily: 'monospace'
-    }}>
-      <h1 style={{ fontSize: '2rem', letterSpacing: '0.2em' }}>NEHIRA CORE</h1>
-      <p style={{ color: '#4b5563' }}>[SYSTEM_STATUS: ONLINE]</p>
-      <div style={{ marginTop: '20px', border: '1px solid #10b981', padding: '10px 20px' }}>
-        <p>ARCHITECT: RAJAT</p>
-        <p>ACCESS: RESTRICTED (API ONLY)</p>
-        <p>NODE: NEHIRA.SPACE</p>
+    <div style={{ backgroundColor: '#050505', color: '#10b981', minHeight: '100vh', padding: '20px', fontFamily: 'monospace' }}>
+      <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+        <h1 style={{ borderBottom: '1px solid #333', paddingBottom: '10px' }}>NEHIRA CORE [SAFE MODE]</h1>
+        
+        {/* Output Log */}
+        <div style={{ margin: '20px 0', minHeight: '200px', whiteSpace: 'pre-wrap', color: '#ccc' }}>
+          {response ? `> NEHIRA: ${response}` : '> Awaiting Direct Command...'}
+        </div>
+
+        {/* Input Line */}
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <span style={{ color: '#10b981' }}>$</span>
+          <input 
+            type="text" 
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCommand()}
+            style={{ flex: 1, background: 'transparent', border: 'none', color: 'white', outline: 'none', fontFamily: 'monospace' }}
+            placeholder="Type command here..."
+          />
+          <button onClick={handleCommand} style={{ background: '#10b981', border: 'none', cursor: 'pointer', padding: '5px 15px' }}>
+            {loading ? '...' : 'RUN'}
+          </button>
+        </div>
+        
+        <p style={{ marginTop: '50px', fontSize: '10px', color: '#333' }}>
+          EMERGENCY TERMINAL. USE ONLY IF KRYV IS OFFLINE.
+        </p>
       </div>
     </div>
   );
