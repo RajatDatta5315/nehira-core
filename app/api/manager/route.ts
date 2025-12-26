@@ -5,70 +5,91 @@ export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Must be Service Role
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
 export async function POST(req: Request) {
   try {
-    const { task, prompt } = await req.json();
+    const { task } = await req.json();
 
-    // --- LOGGING FUNCTION (The Learning Part) ---
+    // 1. DATABASE CHECK (Self-Diagnosis)
+    if (!supabase) throw new Error("CRITICAL: Supabase Connection Failed. Check Environment Variables.");
+
+    // --- LOGGING HELPER ---
     const logEvent = async (type: string, msg: string, det: string) => {
-        if (supabase) await supabase.from('system_logs').insert([{ event_type: type, message: msg, details: det }]);
+        console.log(`[${type}] ${msg}`); // Vercel Logs mein bhi dikhega
+        await supabase.from('system_logs').insert([{ event_type: type, message: msg, details: det }]);
+    };
+
+    // --- KNOWLEDGE HELPER ---
+    const storeKnowledge = async (topic: string, insight: string) => {
+        await supabase.from('knowledge_base').insert([{ topic, insight, source: 'Automated Research' }]);
     };
 
     if (task === 'AUTOPILOT') {
-        if (!supabase) {
-            return NextResponse.json({ error: "DB Connect Failed" });
-        }
-        
-        // 1. Check Population
+        // 2. CHECK POPULATION
         const { count } = await supabase.from('agents').select('*', { count: 'exact', head: true });
         
-        // 2. DECISION: Spawn or Not?
-        // Agar 10 se kam agents hain, toh naya banao.
+        // 3. DECISION LOOP
         if (count !== null && count < 10) {
-            
             const key = process.env.COHERE_API_KEY;
+            if (!key) throw new Error("CRITICAL: Cohere API Key Missing.");
+
+            // 4. WEB SEARCH (Learning Phase)
+            const researchPrompt = "Find one trending archetype in Crypto Twitter or Tech VC culture in 2025. Return just the concept name and a 1-line description.";
             
-            // 3. WEB SEARCH & GENERATION (Internet Access ON)
-            const metaRes = await fetch("https://api.cohere.ai/v1/chat", {
+            const researchRes = await fetch("https://api.cohere.ai/v1/chat", {
                 method: "POST",
                 headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
                 body: JSON.stringify({
                     model: "command-r-08-2024",
-                    // Nehira will search for trending crypto/tech personas
-                    message: "Search the web for 'trending crypto personas or tech stereotypes 2025'. Create a unique AI Agent JSON based on a trend. Format: {\"name\": \"...\", \"role\": \"...\", \"desc\": \"...\", \"color\": \"red/blue/purple/emerald\"}. JSON ONLY.",
-                    connectors: [{ id: "web-search" }], // <--- INTERNET ACCESS ENABLED
+                    message: researchPrompt,
+                    connectors: [{ id: "web-search" }],
+                    temperature: 0.3
+                })
+            });
+            const researchData = await researchRes.json();
+            const trend = researchData.text || "Generic Cyberpunk";
+            
+            // STORE KNOWLEDGE
+            await storeKnowledge("Trend Analysis", trend);
+
+            // 5. GENERATION PHASE (Creation Phase)
+            const genRes = await fetch("https://api.cohere.ai/v1/chat", {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    model: "command-r-08-2024",
+                    message: `Create a JSON for an AI Agent based on this trend: "${trend}". 
+                    Format: {"name": "Name", "role": "Role", "desc": "Description", "color": "purple"}. 
+                    JSON ONLY. No text.`,
                     temperature: 0.9
                 })
             });
             
-            const metaData = await metaRes.json();
-            const jsonStr = metaData.text?.match(/\{[\s\S]*\}/)?.[0];
-            
+            const genData = await genRes.json();
+            const jsonStr = genData.text?.match(/\{[\s\S]*\}/)?.[0];
+
             if (jsonStr) {
                 const agentData = JSON.parse(jsonStr);
                 
-                // 4. SPAWN (Execute)
+                // 6. SPAWN EXECUTION
                 const { error } = await supabase.from('agents').insert([{
                     name: agentData.name,
                     role: agentData.role,
                     description: agentData.desc,
-                    color: agentData.color || 'purple',
+                    color: agentData.color || 'emerald',
                     price: 'FREE',
                     status: 'online'
                 }]);
 
-                if (error) {
-                    await logEvent('ERROR', 'Spawn Failed', error.message);
-                    return NextResponse.json({ status: "ERROR", error: error.message });
-                }
+                if (error) throw error;
 
-                await logEvent('SUCCESS', 'Auto-Spawned Agent', agentData.name);
-                return NextResponse.json({ status: "SPAWNED", agent: agentData.name });
+                await logEvent('SUCCESS', 'Spawned Agent', `${agentData.name} based on ${trend}`);
+                return NextResponse.json({ status: "SPAWNED", agent: agentData.name, based_on: trend });
             } else {
-                await logEvent('ERROR', 'JSON Parse Failed', metaData.text);
+                await logEvent('ERROR', 'JSON Parsing Failed', genData.text);
+                return NextResponse.json({ error: "JSON Parse Failed" });
             }
         } else {
             return NextResponse.json({ status: "IDLE", msg: "Population full." });
@@ -78,8 +99,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: "READY" });
 
   } catch (error: any) {
-    // Catch-all error logging
-    return NextResponse.json({ error: error.message });
+    console.error(error);
+    // Attempt to log the error to DB, if DB is alive
+    if (supabase) await supabase.from('system_logs').insert([{ event_type: 'CRITICAL_FAILURE', message: error.message, details: 'Manager Crashed' }]);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
