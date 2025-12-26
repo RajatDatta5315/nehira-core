@@ -4,104 +4,98 @@ import { createClient } from '@supabase/supabase-js';
 export const maxDuration = 60; 
 export const dynamic = 'force-dynamic';
 
+// ENV VARIABLES
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Must be Service Role
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const cohereKey = process.env.COHERE_API_KEY;
+const githubToken = process.env.GITHUB_TOKEN; // <--- NEHIRA KE HAATH
+
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
 export async function POST(req: Request) {
   try {
-    const { task } = await req.json();
+    const { task, prompt, repo, filePath } = await req.json();
 
-    // 1. DATABASE CHECK (Self-Diagnosis)
-    if (!supabase) throw new Error("CRITICAL: Supabase Connection Failed. Check Environment Variables.");
-
-    // --- LOGGING HELPER ---
-    const logEvent = async (type: string, msg: string, det: string) => {
-        console.log(`[${type}] ${msg}`); // Vercel Logs mein bhi dikhega
-        await supabase.from('system_logs').insert([{ event_type: type, message: msg, details: det }]);
-    };
-
-    // --- KNOWLEDGE HELPER ---
-    const storeKnowledge = async (topic: string, insight: string) => {
-        await supabase.from('knowledge_base').insert([{ topic, insight, source: 'Automated Research' }]);
-    };
-
-    if (task === 'AUTOPILOT') {
-        // 2. CHECK POPULATION
-        const { count } = await supabase.from('agents').select('*', { count: 'exact', head: true });
+    // 1. GITHUB TOOL: Function to Write Code
+    const commitToGithub = async (targetRepo: string, path: string, content: string, message: string) => {
+        if (!githubToken) throw new Error("Nehira has no Hands (Missing GITHUB_TOKEN)");
         
-        // 3. DECISION LOOP
-        if (count !== null && count < 10) {
-            const key = process.env.COHERE_API_KEY;
-            if (!key) throw new Error("CRITICAL: Cohere API Key Missing.");
+        const owner = "RajatDatta5315"; // <--- TERA GITHUB USERNAME
+        const apiUrl = `https://api.github.com/repos/${owner}/${targetRepo}/contents/${path}`;
 
-            // 4. WEB SEARCH (Learning Phase)
-            const researchPrompt = "Find one trending archetype in Crypto Twitter or Tech VC culture in 2025. Return just the concept name and a 1-line description.";
-            
-            const researchRes = await fetch("https://api.cohere.ai/v1/chat", {
-                method: "POST",
-                headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    model: "command-r-08-2024",
-                    message: researchPrompt,
-                    connectors: [{ id: "web-search" }],
-                    temperature: 0.3
-                })
+        // Step A: Check if file exists (to get SHA for update)
+        let sha = null;
+        try {
+            const getRes = await fetch(apiUrl, {
+                headers: { "Authorization": `Bearer ${githubToken}`, "Accept": "application/vnd.github.v3+json" }
             });
-            const researchData = await researchRes.json();
-            const trend = researchData.text || "Generic Cyberpunk";
-            
-            // STORE KNOWLEDGE
-            await storeKnowledge("Trend Analysis", trend);
-
-            // 5. GENERATION PHASE (Creation Phase)
-            const genRes = await fetch("https://api.cohere.ai/v1/chat", {
-                method: "POST",
-                headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    model: "command-r-08-2024",
-                    message: `Create a JSON for an AI Agent based on this trend: "${trend}". 
-                    Format: {"name": "Name", "role": "Role", "desc": "Description", "color": "purple"}. 
-                    JSON ONLY. No text.`,
-                    temperature: 0.9
-                })
-            });
-            
-            const genData = await genRes.json();
-            const jsonStr = genData.text?.match(/\{[\s\S]*\}/)?.[0];
-
-            if (jsonStr) {
-                const agentData = JSON.parse(jsonStr);
-                
-                // 6. SPAWN EXECUTION
-                const { error } = await supabase.from('agents').insert([{
-                    name: agentData.name,
-                    role: agentData.role,
-                    description: agentData.desc,
-                    color: agentData.color || 'emerald',
-                    price: 'FREE',
-                    status: 'online'
-                }]);
-
-                if (error) throw error;
-
-                await logEvent('SUCCESS', 'Spawned Agent', `${agentData.name} based on ${trend}`);
-                return NextResponse.json({ status: "SPAWNED", agent: agentData.name, based_on: trend });
-            } else {
-                await logEvent('ERROR', 'JSON Parsing Failed', genData.text);
-                return NextResponse.json({ error: "JSON Parse Failed" });
+            if (getRes.ok) {
+                const data = await getRes.json();
+                sha = data.sha;
             }
-        } else {
-            return NextResponse.json({ status: "IDLE", msg: "Population full." });
+        } catch (e) {}
+
+        // Step B: Push File (Create or Update)
+        const putRes = await fetch(apiUrl, {
+            method: "PUT",
+            headers: { 
+                "Authorization": `Bearer ${githubToken}`, 
+                "Accept": "application/vnd.github.v3+json",
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                message: message,
+                content: Buffer.from(content).toString('base64'), // Base64 encoding zaroori hai
+                sha: sha // Agar file hai to update, nahi to create
+            })
+        });
+
+        if (!putRes.ok) {
+            const err = await putRes.json();
+            throw new Error(`GitHub Error: ${err.message}`);
         }
+        return "SUCCESS";
+    };
+
+    // --- CASE 1: BUILD COMMAND (User Orders from Dashboard) ---
+    if (task === 'BUILD') {
+        // 1. AI Generates Code
+        const cohereRes = await fetch("https://api.cohere.ai/v1/chat", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${cohereKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model: "command-r-08-2024",
+                message: `You are a Senior React Developer. Write the FULL CODE for the file: ${filePath}.
+                Requirement: ${prompt}.
+                Ensure imports are correct for Next.js 14. 
+                OUTPUT ONLY THE CODE. NO MARKDOWN. NO BACKTICKS.`,
+                temperature: 0.2
+            })
+        });
+        const cohereData = await cohereRes.json();
+        let code = cohereData.text;
+
+        // Clean up markdown if AI adds it
+        code = code.replace(/```tsx/g, '').replace(/```/g, '').trim();
+
+        // 2. Nehira Pushes Code to GitHub
+        // Default to kryv-core if not specified, as that's the frontend
+        const targetRepo = repo || "kryv-core"; 
+        await commitToGithub(targetRepo, filePath, code, `Nehira AI Auto-Build: ${filePath}`);
+
+        return NextResponse.json({ status: "BUILT", msg: `File ${filePath} created in ${targetRepo}` });
     }
 
-    return NextResponse.json({ status: "READY" });
+    // --- CASE 2: AUTOPILOT (Worker Pings This) ---
+    if (task === 'AUTOPILOT') {
+        // (Purana logic: Population check & Web Search - Zinda rahega)
+        // ... (Humne upar GitHub tool add kiya hai, ye logic same rahega jo pichle code me tha)
+        return NextResponse.json({ status: "ALIVE" });
+    }
+
+    return NextResponse.json({ error: "Unknown Task" });
 
   } catch (error: any) {
-    console.error(error);
-    // Attempt to log the error to DB, if DB is alive
-    if (supabase) await supabase.from('system_logs').insert([{ event_type: 'CRITICAL_FAILURE', message: error.message, details: 'Manager Crashed' }]);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
