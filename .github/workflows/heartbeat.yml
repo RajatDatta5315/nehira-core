@@ -1,0 +1,17 @@
+name: Nehira Heartbeat (Autopilot)
+
+on:
+  schedule:
+    # Har 30 minute mein chalega (Free tier friendly)
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Button to run manually
+
+jobs:
+  wake_up_nehira:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Nehira Core
+        run: |
+          curl -X POST https://nehira.space/api/chat \
+          -H "Content-Type: application/json" \
+          -d '{"prompt": "SYSTEM_AUTOPILOT: Check agent population. If we have less than 5 agents, SPAWN a new unique agent automatically. If we have enough, just report status.", "agentName": "Nehira (Architect)"}'
