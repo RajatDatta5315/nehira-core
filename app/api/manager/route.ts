@@ -4,7 +4,6 @@ import { createClient } from '@supabase/supabase-js';
 export const maxDuration = 60; 
 export const dynamic = 'force-dynamic';
 
-// CORS HEADERS (Safety First)
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*', 
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -13,7 +12,6 @@ const corsHeaders = {
 
 export async function OPTIONS() { return NextResponse.json({}, { headers: corsHeaders }); }
 
-// ENV VARIABLES
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const cohereKey = process.env.COHERE_API_KEY;
@@ -25,9 +23,12 @@ export async function POST(req: Request) {
   try {
     const { task, prompt, repo, filePath, errorContext } = await req.json();
 
-    // --- TOOL 1: WRITE TO GITHUB ---
+    // 1. SMART CLEANUP (Dot Remover)
+    // Agar filePath ke end mein dot hai, toh hata do.
+    const cleanPath = filePath.replace(/\.$/, "").trim();
+
     const commitToGithub = async (targetRepo: string, path: string, content: string, message: string) => {
-        if (!githubToken) throw new Error("Nehira has no Hands (Missing GITHUB_TOKEN)");
+        if (!githubToken) throw new Error("Nehira has no Hands");
         const owner = "RajatDatta5315"; 
         const apiUrl = `https://api.github.com/repos/${owner}/${targetRepo}/contents/${path}`;
 
@@ -60,65 +61,38 @@ export async function POST(req: Request) {
         return "SUCCESS";
     };
 
-    // --- TOOL 2: LEARN & STORE (Knowledge Base) ---
     const storeLesson = async (topic: string, lesson: string) => {
-        if (supabase) {
-            await supabase.from('knowledge_base').insert([{ 
-                topic: topic, 
-                insight: lesson, 
-                source: 'Self-Correction' 
-            }]);
-        }
+        if (supabase) await supabase.from('knowledge_base').insert([{ topic, insight: lesson, source: 'Self-Correction' }]);
     };
 
-    // === CASE 1: BUILD (Create New) ===
-    if (task === 'BUILD') {
+    if (task === 'BUILD' || task === 'FIX') {
+        const systemMsg = task === 'FIX' 
+            ? `You are fixing a broken file: ${cleanPath}. Error: "${errorContext}". Rewrite the code properly.` 
+            : `Write code for: ${cleanPath}. Requirement: ${prompt}.`;
+
         const cohereRes = await fetch("https://api.cohere.ai/v1/chat", {
             method: "POST",
             headers: { "Authorization": `Bearer ${cohereKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
                 model: "command-r-08-2024",
-                message: `You are a Senior React Developer. Write the FULL CODE for: ${filePath}.
-                Requirement: ${prompt}.
-                IMPORTANT: Do NOT use external libraries like 'next-auth' or 'react-query' unless asked. 
-                Use standard 'fetch' and 'useEffect' for Supabase.
-                OUTPUT ONLY THE CODE. NO MARKDOWN.`,
+                message: `${systemMsg}
+                RULES:
+                1. Use standard 'import { createClient } from @supabase/supabase-js'.
+                2. NEVER use placeholders like 'YOUR_KEY'. ALWAYS use:
+                   process.env.NEXT_PUBLIC_SUPABASE_URL and process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+                3. Do NOT use next-auth or react-query. Use useEffect and fetch.
+                4. OUTPUT ONLY CODE. NO MARKDOWN.`,
                 temperature: 0.1
             })
         });
         const data = await cohereRes.json();
         let code = data.text.replace(/```tsx/g, '').replace(/```/g, '').trim();
 
-        await commitToGithub(repo || "kryv-core-", filePath, code, `Nehira Created: ${filePath}`);
-        return NextResponse.json({ status: "SUCCESS", msg: `File ${filePath} created.` }, { headers: corsHeaders });
-    }
+        await commitToGithub(repo || "kryv-core-", cleanPath, code, `Nehira ${task}: ${cleanPath}`);
+        
+        if (task === 'FIX') await storeLesson("Coding Standard", "Use process.env for keys, never placeholders.");
 
-    // === CASE 2: FIX (Self-Heal) ===
-    if (task === 'FIX') {
-        // 1. Nehira sochegi ki galti kya thi
-        const cohereRes = await fetch("https://api.cohere.ai/v1/chat", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${cohereKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-                model: "command-r-08-2024",
-                message: `You are fixing a broken file: ${filePath}.
-                The user complained about: "${prompt}".
-                CURRENT ERROR CONTEXT: The previous code used missing libraries (next-auth/react-query).
-                TASK: Rewrite the code using ONLY standard React hooks (useState, useEffect) and Supabase Client.
-                OUTPUT ONLY THE CLEAN CODE.`,
-                temperature: 0.1
-            })
-        });
-        const data = await cohereRes.json();
-        let fixedCode = data.text.replace(/```tsx/g, '').replace(/```/g, '').trim();
-
-        // 2. Code Rewrite karegi
-        await commitToGithub(repo || "kryv-core-", filePath, fixedCode, `Nehira Fixed: ${filePath}`);
-
-        // 3. Lesson Store karegi (Database mein)
-        await storeLesson("Coding Standard", "Avoid using next-auth/react-query. Use standard fetch for stability.");
-
-        return NextResponse.json({ status: "FIXED", msg: `I have rewritten ${filePath} and learned a new lesson.` }, { headers: corsHeaders });
+        return NextResponse.json({ status: "SUCCESS", msg: `File ${cleanPath} processed.` }, { headers: corsHeaders });
     }
 
     return NextResponse.json({ error: "Unknown Task" }, { headers: corsHeaders });
