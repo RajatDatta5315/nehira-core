@@ -4,18 +4,6 @@ import { createClient } from '@supabase/supabase-js';
 export const maxDuration = 60; 
 export const dynamic = 'force-dynamic';
 
-// CORS HEADERS
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*', 
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
-
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
-}
-
-// ENV VARIABLES
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const cohereKey = process.env.COHERE_API_KEY;
@@ -25,10 +13,9 @@ const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supaba
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json(); // Safe parse
-    const { task, prompt, repo, filePath } = body;
+    const { task, prompt, repo, filePath } = await req.json();
 
-    // ... (GitHub Logic - Same as before)
+    // GITHUB TOOL
     const commitToGithub = async (targetRepo: string, path: string, content: string, message: string) => {
         if (!githubToken) throw new Error("Nehira has no Hands (Missing GITHUB_TOKEN)");
         const owner = "RajatDatta5315"; 
@@ -83,21 +70,20 @@ export async function POST(req: Request) {
         let code = cohereData.text;
         code = code.replace(/```tsx/g, '').replace(/```/g, '').trim();
 
-        const targetRepo = repo || "kryv-core"; 
+        const targetRepo = repo || "kryv-core-"; 
         await commitToGithub(targetRepo, filePath, code, `Nehira AI Auto-Build: ${filePath}`);
 
-        return NextResponse.json({ status: "BUILT", msg: `File ${filePath} created in ${targetRepo}` }, { headers: corsHeaders });
+        return NextResponse.json({ status: "BUILT", msg: `File ${filePath} created in ${targetRepo}` });
     }
 
-    // AUTOPILOT
     if (task === 'AUTOPILOT') {
-        return NextResponse.json({ status: "ALIVE" }, { headers: corsHeaders });
+        return NextResponse.json({ status: "ALIVE" });
     }
 
-    return NextResponse.json({ error: "Unknown Task" }, { headers: corsHeaders });
+    return NextResponse.json({ error: "Unknown Task" });
 
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
