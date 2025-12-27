@@ -4,6 +4,10 @@ const fs = require('fs');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
+// --- CONFIG ---
+const CAMERA_URL = "http://192.168.31.2:8080/shot.jpg"; // Tera Phone Camera
+const MONITORED_REPO = 'kryv-core-';
+
 // --- SETUP ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -12,95 +16,80 @@ const githubToken = process.env.GITHUB_TOKEN;
 const cfAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
 const cfToken = process.env.CLOUDFLARE_API_TOKEN;
 
-const MONITORED_REPO = 'kryv-core-';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 console.log("🟢 NEHIRA CEO: ONLINE. MODE: VISION + BUILDER + DEPLOYER.");
 
-// 1. GITHUB TOOLS
-const readFromGithub = async (path) => {
+// --- MODULE 1: VISION (Security Filtered) ---
+const takeSnapshot = async () => {
     try {
-        const res = await fetch(`https://api.github.com/repos/RajatDatta5315/${MONITORED_REPO}/contents/${path}`, {
-            headers: { "Authorization": `Bearer ${githubToken}`, "Accept": "application/vnd.github.v3+json" }
-        });
-        if (!res.ok) return null;
-        const data = await res.json();
-        return Buffer.from(data.content, 'base64').toString('utf-8');
-    } catch (e) { return null; }
+        const res = await fetch(CAMERA_URL);
+        if (!res.ok) throw new Error("Camera Offline");
+        const buffer = await res.arrayBuffer();
+        console.log("📸 NEHIRA VISION: Image captured securely for Rajat.");
+        return Buffer.from(buffer).toString('base64');
+    } catch (e) {
+        console.error("👁️ VISION ERROR:", e.message);
+        return null;
+    }
 };
 
-const commitToGithub = async (path, content, message) => {
-    const apiUrl = `https://api.github.com/repos/RajatDatta5315/${MONITORED_REPO}/contents/${path}`;
-    let sha = null;
-    try {
-        const getRes = await fetch(apiUrl, { headers: { "Authorization": `Bearer ${githubToken}`, "Accept": "application/vnd.github.v3+json" }});
-        if (getRes.ok) { sha = (await getRes.json()).sha; }
-    } catch (e) {}
-    await fetch(apiUrl, {
-        method: "PUT",
-        headers: { "Authorization": `Bearer ${githubToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ message, content: Buffer.from(content).toString('base64'), sha })
-    });
-};
-
-// 2. BUILD & DEPLOY (Cloudflare)
+// --- MODULE 2: DEPLOYMENT (Cloudflare) ---
 const runDeployment = async () => {
     try {
-        console.log("🚀 DEPLOYING TO CLOUDFLARE...");
+        console.log("🚀 CLOUDFLARE DEPLOYMENT STARTED...");
         if (fs.existsSync('./kryv_build')) fs.rmSync('./kryv_build', { recursive: true, force: true });
+        
         const repoUrl = `https://RajatDatta5315:${githubToken}@github.com/RajatDatta5315/${MONITORED_REPO}.git`;
-        
         await execPromise(`git clone ${repoUrl} ./kryv_build`);
-        await execPromise(`cd ./kryv_build && npm install`);
         
-        // Ensure static export for Cloudflare
-        const configPath = './kryv_build/next.config.js';
-        let conf = fs.readFileSync(configPath, 'utf8');
-        if (!conf.includes("'export'")) {
-            conf = conf.replace("nextConfig = {", "nextConfig = { output: 'export',");
-            fs.writeFileSync(configPath, conf);
-        }
-
-        await execPromise(`cd ./kryv_build && npm run build`);
+        console.log("📦 BUILDING STATIC ASSETS...");
+        await execPromise(`cd ./kryv_build && npm install && npm run build`);
         
         process.env.CLOUDFLARE_ACCOUNT_ID = cfAccountId;
         process.env.CLOUDFLARE_API_TOKEN = cfToken;
+        
+        // Direct Upload to Cloudflare Pages
         await execPromise(`npx wrangler pages deploy ./kryv_build/out --project-name kryv-core --branch main`);
         
         return "SUCCESS";
-    } catch (e) { return "FAILED: " + e.message; }
+    } catch (e) {
+        console.error("❌ DEPLOY ERROR:", e.message);
+        return "FAILED: " + e.message;
+    }
 };
 
-// --- MAIN LOOP ---
+// --- MAIN ARCHITECT LOOP ---
 async function startConsciousness() {
   while (true) {
     try {
+      // Check Tasks
       const { data: task } = await supabase.from('task_queue').select('*').eq('status', 'PENDING').limit(1).single();
       
       if (task) {
-          console.log(`🛠️ ACTION: ${task.task_type}`);
+          console.log(`🛠️ EXECUTING: ${task.task_type}`);
           await supabase.from('task_queue').update({ status: 'PROCESSING' }).eq('id', task.id);
           let status = 'FAILED';
 
-          if (task.task_type === 'FIX' || task.task_type === 'BUILD') {
-               const brokenCode = await readFromGithub(task.file_path) || "";
-               const refCode = await readFromGithub('components/StatusPanel.tsx') || "";
-
-               const cohereRes = await fetch("https://api.ai", { /* AI Logic */ }); // Simplified for brevity
-               // (AI generates code here)
-               await commitToGithub(task.file_path, "/* Fixed Code */", "Nehira Fix");
-               await supabase.from('task_queue').insert([{ task_type: 'DEPLOY', status: 'PENDING' }]);
-               status = 'COMPLETED';
+          if (task.task_type === 'DEPLOY') {
+              status = await runDeployment();
           } 
-          else if (task.task_type === 'DEPLOY') {
-               status = await runDeployment();
+          else if (task.task_type === 'VISION') {
+              const img = await takeSnapshot();
+              status = img ? "SUCCESS" : "FAILED";
+              // Future: Yahan Image analysis logic aayega
           }
 
           await supabase.from('task_queue').update({ status }).eq('id', task.id);
       }
+      
       await new Promise(r => setTimeout(r, 10000));
-    } catch (e) { console.error(e); await new Promise(r => setTimeout(r, 10000)); }
+    } catch (e) { 
+        console.error("LOOP ERROR:", e.message);
+        await new Promise(r => setTimeout(r, 10000));
+    }
   }
 }
+
 startConsciousness();
 
