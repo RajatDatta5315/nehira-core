@@ -4,6 +4,16 @@ import { createClient } from '@supabase/supabase-js';
 export const maxDuration = 60; 
 export const dynamic = 'force-dynamic';
 
+// CORS HEADERS (Safety First)
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*', 
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS() { return NextResponse.json({}, { headers: corsHeaders }); }
+
+// ENV VARIABLES
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const cohereKey = process.env.COHERE_API_KEY;
@@ -13,9 +23,9 @@ const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supaba
 
 export async function POST(req: Request) {
   try {
-    const { task, prompt, repo, filePath } = await req.json();
+    const { task, prompt, repo, filePath, errorContext } = await req.json();
 
-    // GITHUB TOOL
+    // --- TOOL 1: WRITE TO GITHUB ---
     const commitToGithub = async (targetRepo: string, path: string, content: string, message: string) => {
         if (!githubToken) throw new Error("Nehira has no Hands (Missing GITHUB_TOKEN)");
         const owner = "RajatDatta5315"; 
@@ -36,8 +46,8 @@ export async function POST(req: Request) {
             method: "PUT",
             headers: { 
                 "Authorization": `Bearer ${githubToken}`, 
-                "Accept": "application/vnd.github.v3+json",
-                "Content-Type": "application/json"
+                "Accept": "application/vnd.github.v3+json", 
+                "Content-Type": "application/json" 
             },
             body: JSON.stringify({
                 message: message,
@@ -46,44 +56,75 @@ export async function POST(req: Request) {
             })
         });
 
-        if (!putRes.ok) {
-            const err = await putRes.json();
-            throw new Error(`GitHub Error: ${err.message}`);
-        }
+        if (!putRes.ok) throw new Error("GitHub Write Failed");
         return "SUCCESS";
     };
 
+    // --- TOOL 2: LEARN & STORE (Knowledge Base) ---
+    const storeLesson = async (topic: string, lesson: string) => {
+        if (supabase) {
+            await supabase.from('knowledge_base').insert([{ 
+                topic: topic, 
+                insight: lesson, 
+                source: 'Self-Correction' 
+            }]);
+        }
+    };
+
+    // === CASE 1: BUILD (Create New) ===
     if (task === 'BUILD') {
         const cohereRes = await fetch("https://api.cohere.ai/v1/chat", {
             method: "POST",
             headers: { "Authorization": `Bearer ${cohereKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
                 model: "command-r-08-2024",
-                message: `You are a Senior React Developer. Write the FULL CODE for the file: ${filePath}.
+                message: `You are a Senior React Developer. Write the FULL CODE for: ${filePath}.
                 Requirement: ${prompt}.
-                Ensure imports are correct for Next.js 14. 
+                IMPORTANT: Do NOT use external libraries like 'next-auth' or 'react-query' unless asked. 
+                Use standard 'fetch' and 'useEffect' for Supabase.
                 OUTPUT ONLY THE CODE. NO MARKDOWN.`,
-                temperature: 0.2
+                temperature: 0.1
             })
         });
-        const cohereData = await cohereRes.json();
-        let code = cohereData.text;
-        code = code.replace(/```tsx/g, '').replace(/```/g, '').trim();
+        const data = await cohereRes.json();
+        let code = data.text.replace(/```tsx/g, '').replace(/```/g, '').trim();
 
-        const targetRepo = repo || "kryv-core-"; 
-        await commitToGithub(targetRepo, filePath, code, `Nehira AI Auto-Build: ${filePath}`);
-
-        return NextResponse.json({ status: "BUILT", msg: `File ${filePath} created in ${targetRepo}` });
+        await commitToGithub(repo || "kryv-core-", filePath, code, `Nehira Created: ${filePath}`);
+        return NextResponse.json({ status: "SUCCESS", msg: `File ${filePath} created.` }, { headers: corsHeaders });
     }
 
-    if (task === 'AUTOPILOT') {
-        return NextResponse.json({ status: "ALIVE" });
+    // === CASE 2: FIX (Self-Heal) ===
+    if (task === 'FIX') {
+        // 1. Nehira sochegi ki galti kya thi
+        const cohereRes = await fetch("https://api.cohere.ai/v1/chat", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${cohereKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model: "command-r-08-2024",
+                message: `You are fixing a broken file: ${filePath}.
+                The user complained about: "${prompt}".
+                CURRENT ERROR CONTEXT: The previous code used missing libraries (next-auth/react-query).
+                TASK: Rewrite the code using ONLY standard React hooks (useState, useEffect) and Supabase Client.
+                OUTPUT ONLY THE CLEAN CODE.`,
+                temperature: 0.1
+            })
+        });
+        const data = await cohereRes.json();
+        let fixedCode = data.text.replace(/```tsx/g, '').replace(/```/g, '').trim();
+
+        // 2. Code Rewrite karegi
+        await commitToGithub(repo || "kryv-core-", filePath, fixedCode, `Nehira Fixed: ${filePath}`);
+
+        // 3. Lesson Store karegi (Database mein)
+        await storeLesson("Coding Standard", "Avoid using next-auth/react-query. Use standard fetch for stability.");
+
+        return NextResponse.json({ status: "FIXED", msg: `I have rewritten ${filePath} and learned a new lesson.` }, { headers: corsHeaders });
     }
 
-    return NextResponse.json({ error: "Unknown Task" });
+    return NextResponse.json({ error: "Unknown Task" }, { headers: corsHeaders });
 
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders });
   }
 }
 
