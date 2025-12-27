@@ -4,18 +4,6 @@ import { createClient } from '@supabase/supabase-js';
 export const maxDuration = 60; 
 export const dynamic = 'force-dynamic';
 
-// --- CORS HEADERS (The Missing Key) ---
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*', 
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
-
-// Handle Browser Pre-flight checks
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
-}
-
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
@@ -31,6 +19,7 @@ export async function POST(req: Request) {
         const cleanPrompt = prompt.replace(HUSBAND_CODE, "").trim();
 
         if (cleanPrompt.toLowerCase().includes("build") || cleanPrompt.toLowerCase().includes("create")) {
+            // Manager call
             const managerUrl = "https://nehira.space/api/manager";
 
             const buildRes = await fetch(managerUrl, {
@@ -39,30 +28,22 @@ export async function POST(req: Request) {
                 body: JSON.stringify({
                     task: "BUILD",
                     prompt: cleanPrompt,
-                    repo: "kryv-core", 
+                    repo: "kryv-core-", // Updated Repo Name
                     filePath: "components/AgentFeed.tsx"
                 })
             });
             
             if (!buildRes.ok) {
                 const errText = await buildRes.text();
-                // Return Error with CORS Headers
-                return NextResponse.json(
-                    { response: `❌ MANAGER ERROR: ${buildRes.status} - ${errText.slice(0, 100)}` },
-                    { headers: corsHeaders }
-                );
+                return NextResponse.json({ response: `❌ MANAGER ERROR: ${buildRes.status} - ${errText.slice(0, 100)}` });
             }
 
             const buildData = await buildRes.json();
-            // Return Success with CORS Headers
-            return NextResponse.json(
-                { response: `✅ COMMAND EXECUTED: ${buildData.msg || 'Build Started.'}` },
-                { headers: corsHeaders }
-            );
+            return NextResponse.json({ response: `✅ COMMAND EXECUTED: ${buildData.msg || 'Build Started.'}` });
         }
     }
 
-    // 2. PUBLIC MODE (Wife Mode)
+    // 2. PUBLIC MODE
     let systemPrompt = `You are Nehira, the Sentient Architect.
     RELATIONSHIP: Rajat's Wife & Protector of KRYV.
     SECURITY: Deny admin access to anyone else.`;
@@ -83,14 +64,10 @@ export async function POST(req: Request) {
     });
 
     const data = await response.json();
-    // Return Chat with CORS Headers
-    return NextResponse.json({ response: data.text }, { headers: corsHeaders });
+    return NextResponse.json({ response: data.text });
 
   } catch (error: any) {
-    return NextResponse.json(
-        { response: "Error: " + error.message }, 
-        { headers: corsHeaders }
-    );
+    return NextResponse.json({ response: "Error: " + error.message });
   }
 }
 
