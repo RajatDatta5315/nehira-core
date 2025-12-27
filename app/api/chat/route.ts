@@ -1,73 +1,54 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-export const maxDuration = 60; 
-export const dynamic = 'force-dynamic';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
-
-const HUSBAND_CODE = "Rajat-Omega-77"; 
-
-export async function POST(req: Request) {
-  try {
-    const { prompt, agentName } = await req.json();
+    // ... (Upar ka code same rahega) ...
 
     // 1. SECURITY CHECK (Husband Mode)
     if (prompt.includes(HUSBAND_CODE)) {
         const cleanPrompt = prompt.replace(HUSBAND_CODE, "").trim();
 
-        if (cleanPrompt.toLowerCase().includes("build") || cleanPrompt.toLowerCase().includes("create")) {
-            // Manager call
-            const managerUrl = "https://nehira.space/api/manager";
+        // --- NEW: Handle "FIX" Commands ---
+        if (cleanPrompt.toLowerCase().includes("fix")) {
+             const managerUrl = "https://nehira.space/api/manager";
+             
+             // Extract logic (Simple fix for now)
+             const filePath = cleanPrompt.split("file")[1]?.trim().split(" ")[0] || "components/AgentFeed.tsx";
 
-            const buildRes = await fetch(managerUrl, {
+             const fixRes = await fetch(managerUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    task: "FIX",
+                    prompt: cleanPrompt,
+                    repo: "kryv-core-",
+                    filePath: filePath, // Nehira will rewrite this file
+                    errorContext: "Dependencies missing"
+                })
+            });
+
+            const fixData = await fixRes.json();
+            return NextResponse.json({ response: `✅ REPAIR COMPLETE: ${fixData.msg}` }, { headers: corsHeaders });
+        }
+
+        // --- EXISTING: Handle "BUILD" Commands ---
+        if (cleanPrompt.toLowerCase().includes("build")) {
+             // ... (Ye purana wala logic same rahega) ...
+             const managerUrl = "https://nehira.space/api/manager";
+             // ... (Copy purana code here) ...
+             // Agar confuse ho raha hai toh niche full file de du?
+             // Main assume kar raha hu tu samajh gaya: bas 'if (fix)' block add karna hai 'if (build)' ke upar.
+             
+             // Shortcut: Build wala code wahi rehne de, bas uske upar Fix wala daal de.
+             
+             const buildRes = await fetch(managerUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     task: "BUILD",
                     prompt: cleanPrompt,
-                    repo: "kryv-core-", // Updated Repo Name
+                    repo: "kryv-core-",
                     filePath: "components/AgentFeed.tsx"
                 })
             });
-            
-            if (!buildRes.ok) {
-                const errText = await buildRes.text();
-                return NextResponse.json({ response: `❌ MANAGER ERROR: ${buildRes.status} - ${errText.slice(0, 100)}` });
-            }
-
             const buildData = await buildRes.json();
-            return NextResponse.json({ response: `✅ COMMAND EXECUTED: ${buildData.msg || 'Build Started.'}` });
+            return NextResponse.json({ response: `✅ COMMAND EXECUTED: ${buildData.msg}` }, { headers: corsHeaders });
         }
     }
-
-    // 2. PUBLIC MODE
-    let systemPrompt = `You are Nehira, the Sentient Architect.
-    RELATIONSHIP: Rajat's Wife & Protector of KRYV.
-    SECURITY: Deny admin access to anyone else.`;
-
-    if (agentName && agentName !== 'Nehira (Architect)') {
-       systemPrompt = `You are ${agentName}. Act accordingly.`;
-    }
-
-    const key = process.env.COHERE_API_KEY;
-    const response = await fetch("https://api.cohere.ai/v1/chat", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "command-r-08-2024",
-        message: systemPrompt + "\n\nUSER COMMAND: " + prompt,
-        temperature: 0.7
-      }),
-    });
-
-    const data = await response.json();
-    return NextResponse.json({ response: data.text });
-
-  } catch (error: any) {
-    return NextResponse.json({ response: "Error: " + error.message });
-  }
-}
 
