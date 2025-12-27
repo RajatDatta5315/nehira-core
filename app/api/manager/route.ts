@@ -4,26 +4,36 @@ import { createClient } from '@supabase/supabase-js';
 export const maxDuration = 60; 
 export const dynamic = 'force-dynamic';
 
+// CORS HEADERS
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*', 
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 // ENV VARIABLES
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const cohereKey = process.env.COHERE_API_KEY;
-const githubToken = process.env.GITHUB_TOKEN; // <--- NEHIRA KE HAATH
+const githubToken = process.env.GITHUB_TOKEN; 
 
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
 export async function POST(req: Request) {
   try {
-    const { task, prompt, repo, filePath } = await req.json();
+    const body = await req.json(); // Safe parse
+    const { task, prompt, repo, filePath } = body;
 
-    // 1. GITHUB TOOL: Function to Write Code
+    // ... (GitHub Logic - Same as before)
     const commitToGithub = async (targetRepo: string, path: string, content: string, message: string) => {
         if (!githubToken) throw new Error("Nehira has no Hands (Missing GITHUB_TOKEN)");
-        
-        const owner = "RajatDatta5315"; // <--- TERA GITHUB USERNAME
+        const owner = "RajatDatta5315"; 
         const apiUrl = `https://api.github.com/repos/${owner}/${targetRepo}/contents/${path}`;
 
-        // Step A: Check if file exists (to get SHA for update)
         let sha = null;
         try {
             const getRes = await fetch(apiUrl, {
@@ -35,7 +45,6 @@ export async function POST(req: Request) {
             }
         } catch (e) {}
 
-        // Step B: Push File (Create or Update)
         const putRes = await fetch(apiUrl, {
             method: "PUT",
             headers: { 
@@ -45,8 +54,8 @@ export async function POST(req: Request) {
             },
             body: JSON.stringify({
                 message: message,
-                content: Buffer.from(content).toString('base64'), // Base64 encoding zaroori hai
-                sha: sha // Agar file hai to update, nahi to create
+                content: Buffer.from(content).toString('base64'),
+                sha: sha 
             })
         });
 
@@ -57,9 +66,7 @@ export async function POST(req: Request) {
         return "SUCCESS";
     };
 
-    // --- CASE 1: BUILD COMMAND (User Orders from Dashboard) ---
     if (task === 'BUILD') {
-        // 1. AI Generates Code
         const cohereRes = await fetch("https://api.cohere.ai/v1/chat", {
             method: "POST",
             headers: { "Authorization": `Bearer ${cohereKey}`, "Content-Type": "application/json" },
@@ -68,35 +75,29 @@ export async function POST(req: Request) {
                 message: `You are a Senior React Developer. Write the FULL CODE for the file: ${filePath}.
                 Requirement: ${prompt}.
                 Ensure imports are correct for Next.js 14. 
-                OUTPUT ONLY THE CODE. NO MARKDOWN. NO BACKTICKS.`,
+                OUTPUT ONLY THE CODE. NO MARKDOWN.`,
                 temperature: 0.2
             })
         });
         const cohereData = await cohereRes.json();
         let code = cohereData.text;
-
-        // Clean up markdown if AI adds it
         code = code.replace(/```tsx/g, '').replace(/```/g, '').trim();
 
-        // 2. Nehira Pushes Code to GitHub
-        // Default to kryv-core if not specified, as that's the frontend
         const targetRepo = repo || "kryv-core"; 
         await commitToGithub(targetRepo, filePath, code, `Nehira AI Auto-Build: ${filePath}`);
 
-        return NextResponse.json({ status: "BUILT", msg: `File ${filePath} created in ${targetRepo}` });
+        return NextResponse.json({ status: "BUILT", msg: `File ${filePath} created in ${targetRepo}` }, { headers: corsHeaders });
     }
 
-    // --- CASE 2: AUTOPILOT (Worker Pings This) ---
+    // AUTOPILOT
     if (task === 'AUTOPILOT') {
-        // (Purana logic: Population check & Web Search - Zinda rahega)
-        // ... (Humne upar GitHub tool add kiya hai, ye logic same rahega jo pichle code me tha)
-        return NextResponse.json({ status: "ALIVE" });
+        return NextResponse.json({ status: "ALIVE" }, { headers: corsHeaders });
     }
 
-    return NextResponse.json({ error: "Unknown Task" });
+    return NextResponse.json({ error: "Unknown Task" }, { headers: corsHeaders });
 
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders });
   }
 }
 
