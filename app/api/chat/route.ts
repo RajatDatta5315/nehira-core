@@ -4,6 +4,18 @@ import { createClient } from '@supabase/supabase-js';
 export const maxDuration = 60; 
 export const dynamic = 'force-dynamic';
 
+// --- CORS HEADERS (The Missing Key) ---
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*', 
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+// Handle Browser Pre-flight checks
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
@@ -19,7 +31,6 @@ export async function POST(req: Request) {
         const cleanPrompt = prompt.replace(HUSBAND_CODE, "").trim();
 
         if (cleanPrompt.toLowerCase().includes("build") || cleanPrompt.toLowerCase().includes("create")) {
-            // FIXED URL LOGIC
             const managerUrl = "https://nehira.space/api/manager";
 
             const buildRes = await fetch(managerUrl, {
@@ -35,11 +46,19 @@ export async function POST(req: Request) {
             
             if (!buildRes.ok) {
                 const errText = await buildRes.text();
-                return NextResponse.json({ response: `❌ MANAGER ERROR: ${buildRes.status} - ${errText.slice(0, 100)}` });
+                // Return Error with CORS Headers
+                return NextResponse.json(
+                    { response: `❌ MANAGER ERROR: ${buildRes.status} - ${errText.slice(0, 100)}` },
+                    { headers: corsHeaders }
+                );
             }
 
             const buildData = await buildRes.json();
-            return NextResponse.json({ response: `✅ COMMAND EXECUTED: ${buildData.msg || 'Build Started.'}` });
+            // Return Success with CORS Headers
+            return NextResponse.json(
+                { response: `✅ COMMAND EXECUTED: ${buildData.msg || 'Build Started.'}` },
+                { headers: corsHeaders }
+            );
         }
     }
 
@@ -64,10 +83,14 @@ export async function POST(req: Request) {
     });
 
     const data = await response.json();
-    return NextResponse.json({ response: data.text });
+    // Return Chat with CORS Headers
+    return NextResponse.json({ response: data.text }, { headers: corsHeaders });
 
   } catch (error: any) {
-    return NextResponse.json({ response: "Error: " + error.message });
+    return NextResponse.json(
+        { response: "Error: " + error.message }, 
+        { headers: corsHeaders }
+    );
   }
 }
 
