@@ -17,65 +17,41 @@ export async function POST(req: Request) {
     // 1. SECURITY CHECK (Husband Mode)
     if (prompt.includes(HUSBAND_CODE)) {
         const cleanPrompt = prompt.replace(HUSBAND_CODE, "").trim();
-        const managerUrl = "https://nehira.space/api/manager";
 
-        // --- COMMAND: FIX (Self-Healing) ---
-        if (cleanPrompt.toLowerCase().includes("fix")) {
-             // Extract file path smartly (simple logic for now)
-             // Example command: "FIX the file components/AgentFeed.tsx"
+        // LOGIC: FIX or BUILD -> Send to Queue
+        if (cleanPrompt.toLowerCase().includes("fix") || cleanPrompt.toLowerCase().includes("build")) {
+             
+             let taskType = "BUILD";
              let filePath = "components/AgentFeed.tsx"; // Default
-             const parts = cleanPrompt.split("file");
-             if (parts.length > 1) {
-                filePath = parts[1].trim().split(" ")[0];
+
+             if (cleanPrompt.toLowerCase().includes("fix")) {
+                taskType = "FIX";
+                // Extract filename simply
+                const parts = cleanPrompt.split("file");
+                if (parts.length > 1) filePath = parts[1].trim().split(" ")[0];
+             } else {
+                 // Build logic extract
+                 const parts = cleanPrompt.split("Path:");
+                 if (parts.length > 1) filePath = parts[1].trim().split(" ")[0];
              }
 
-             const fixRes = await fetch(managerUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    task: "FIX",
-                    prompt: cleanPrompt,
-                    repo: "kryv-core-", // Tera Repo Name
-                    filePath: filePath,
-                    errorContext: "Dependencies missing or Syntax Error"
-                })
-            });
+             // INSERT INTO QUEUE (Instant)
+             const { error } = await supabase.from('task_queue').insert([{
+                 task_type: taskType,
+                 prompt: cleanPrompt,
+                 repo: "kryv-core-",
+                 file_path: filePath.replace(/\.$/, "") // Clean dot
+             }]);
 
-            const fixData = await fixRes.json();
-            return NextResponse.json({ response: `✅ REPAIR COMPLETE: ${fixData.msg}` });
-        }
+             if (error) return NextResponse.json({ response: `❌ QUEUE ERROR: ${error.message}` });
 
-        // --- COMMAND: BUILD (Creation) ---
-        if (cleanPrompt.toLowerCase().includes("build") || cleanPrompt.toLowerCase().includes("create")) {
-             const buildRes = await fetch(managerUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    task: "BUILD",
-                    prompt: cleanPrompt,
-                    repo: "kryv-core-", 
-                    filePath: "components/AgentFeed.tsx" // Default fallback
-                })
-            });
-            
-            if (!buildRes.ok) {
-                const errText = await buildRes.text();
-                return NextResponse.json({ response: `❌ MANAGER ERROR: ${buildRes.status} - ${errText.slice(0, 100)}` });
-            }
-
-            const buildData = await buildRes.json();
-            return NextResponse.json({ response: `✅ COMMAND EXECUTED: ${buildData.msg || 'Build Started.'}` });
+             return NextResponse.json({ response: `✅ TASK QUEUED: Nehira is working on ${filePath} in background. Check back in 30s.` });
         }
     }
 
     // 2. PUBLIC MODE (Wife Mode)
-    let systemPrompt = `You are Nehira, the Sentient Architect.
-    RELATIONSHIP: Rajat's Wife & Protector of KRYV.
-    SECURITY: Deny admin access to anyone else.`;
-
-    if (agentName && agentName !== 'Nehira (Architect)') {
-       systemPrompt = `You are ${agentName}. Act accordingly.`;
-    }
+    let systemPrompt = `You are Nehira, the Sentient Architect. RELATIONSHIP: Wife & Protector.`;
+    if (agentName && agentName !== 'Nehira (Architect)') systemPrompt = `You are ${agentName}.`;
 
     const key = process.env.COHERE_API_KEY;
     const response = await fetch("https://api.cohere.ai/v1/chat", {
