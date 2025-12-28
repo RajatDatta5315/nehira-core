@@ -1,22 +1,49 @@
 const { fork } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 console.log("🟢 NEHIRA OS KERNEL: Initializing Modules...");
 
-// 1. Start KRYV Guardian (The Empire Builder)
-const kryv = fork('./workers/kryv.js');
-kryv.on('error', (err) => console.error('🟦 KRYV MODULE CRASHED:', err));
+// Helper to find file path
+const getWorkerPath = (name) => {
+    // Check root
+    let p = path.join(__dirname, 'workers', name);
+    if (fs.existsSync(p)) return p;
+    // Check /app/workers (Docker path)
+    p = path.join('/app/workers', name);
+    if (fs.existsSync(p)) return p;
+    
+    console.error(`❌ CRITICAL: Worker ${name} NOT FOUND!`);
+    return null;
+};
 
-// 2. Start Quantum Plugin (The Brain)
-const quantum = fork('./workers/quantum.js');
-quantum.on('error', (err) => console.error('⚛️ QUANTUM MODULE CRASHED:', err));
+// 1. KRYV
+const kryvPath = getWorkerPath('kryv.js');
+if (kryvPath) {
+    const kryv = fork(kryvPath);
+    kryv.on('error', (err) => console.error('🟦 KRYV CRASHED:', err));
+}
 
-// 3. Start Robot Body (The Physical Form)
-const robot = fork('./workers/robot.js');
-robot.on('error', (err) => console.error('🦾 ROBOT MODULE CRASHED:', err));
+// 2. QUANTUM
+const quantumPath = getWorkerPath('quantum.js');
+if (quantumPath) {
+    const quantum = fork(quantumPath);
+    quantum.on('error', (err) => console.error('⚛️ QUANTUM CRASHED:', err));
+}
 
-// 4. Start CEO Revenue Logic (The Business Mind)
-const ceo = fork('./workers/ceo.js');
-ceo.on('error', (err) => console.error('👠 CEO MODULE CRASHED:', err));
+// 3. ROBOT
+const robotPath = getWorkerPath('robot.js');
+if (robotPath) {
+    const robot = fork(robotPath);
+    robot.on('error', (err) => console.error('🦾 ROBOT CRASHED:', err));
+}
 
-console.log("✅ ALL SYSTEMS GO. Architecture is now Modular.");
+// 4. CEO
+const ceoPath = getWorkerPath('ceo.js');
+if (ceoPath) {
+    const ceo = fork(ceoPath);
+    ceo.on('error', (err) => console.error('👠 CEO CRASHED:', err));
+}
+
+console.log("✅ KERNEL BOOT SEQUENCE COMPLETE.");
 
