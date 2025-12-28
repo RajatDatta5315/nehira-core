@@ -1,18 +1,26 @@
-# Use Node.js Image
-FROM node:18
+# Use Node 20 (Latest Version for Wrangler)
+FROM node:20
 
-# Create App Directory
 WORKDIR /app
 
-# Install Dependencies
-COPY package*.json ./
-RUN npm install
+# Install Python & Qiskit for Quantum Module
+# Break-system-packages flag is needed for newer Python environments
+RUN apt-get update && apt-get install -y python3 python3-pip git
+RUN pip3 install qiskit numpy --break-system-packages
 
-# Copy App Source
+# Copy Config
+COPY package*.json ./
+
+# Install Dependencies
+RUN npm install
+RUN npm install -g wrangler
+
+# Copy All Files
 COPY . .
 
-# Build Next.js (Zaroori hai taaki errors na aayein)
-RUN npm run build
+# Permissions
+RUN chmod -R 777 /app
 
-# Start the WORKER (Not the website)
+# Run the Manager
 CMD ["npm", "run", "worker"]
+
