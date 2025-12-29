@@ -1,0 +1,27 @@
+name: Nehira APK Factory
+on:
+  workflow_dispatch: # Button dabane pe chalega
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }} # Iski zaroorat pad sakti hai
+
+      - name: Install Dependencies
+        working-directory: ./mobile
+        run: npm install
+
+      - name: Build Android APK (Preview)
+        working-directory: ./mobile
+        run: npx eas-cli build --platform android --profile preview --non-interactive --no-wait
