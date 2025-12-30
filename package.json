@@ -1,10 +1,10 @@
 {
   "name": "nehira-core",
   "version": "1.0.0",
-  "description": "The Brain of KRYV Empire",
+  "description": "KRYV Backend Brain",
   "main": "worker.js",
   "scripts": {
-    "start": "node worker.js & node workers/spawner.js & node workers/drypaper_agent.js",
+    "start": "node worker.js & node workers/spawner.js & node workers/drypaper_agent.js & node workers/ceo_brain.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
