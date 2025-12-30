@@ -1,53 +1,58 @@
 const { createClient } = require('@supabase/supabase-js');
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-// 🔒 SECURITY
-const CAM_USER = 'admin';
-const CAM_PASS = 'nehira_secure';
-const BASE_URL = "https://3f156567110300.lhr.life"; // Update if Pinggy changes
-const CAMERA_URL = `${BASE_URL}/shot.jpg`;
-
-console.log("🦾 NEHIRA VISION: OBSESSIVE MODE ONLINE (24/7).");
+console.log("🦾 NEHIRA VISION: STARTING SPY MODE...");
 
 async function robotLoop() {
-    console.log("🦾 I AM WATCHING YOU, RAJAT...");
-    
     while(true) {
         try {
-            // 1. Snapshot Every 3 Seconds (Staring)
-            const auth = Buffer.from(`${CAM_USER}:${CAM_PASS}`).toString('base64');
-            const res = await fetch(CAMERA_URL, {
-                headers: { 'Authorization': `Basic ${auth}` }
-            });
+            // 🕵️ SPY ACTION 1: Database se URL mango
+            const { data, error } = await supabase.from('config_store').select('value').eq('key', 'CAMERA_URL').single();
             
-            if (res.ok) {
-                // Hum har photo database mein nahi dalenge (Storage full ho jayega)
-                // Hum bas 'Heartbeat' bhejenge ki "Main dekh rahi hoon"
-                // Aur agar koi specific COMMAND aati hai tabhi photo process karenge.
-                
-                // Optional: Yahan future mein Face Detection code aayega.
-                // Abhi ke liye bas connection zinda rakh rahe hain.
-                process.stdout.write("👁️"); // Terminal mein aankhein blink karengi
-            } else {
-                console.log("❌ Blinded (Camera Offline)");
+            if (error || !data || !data.value || data.value === 'WAITING') {
+                // Agar URL nahi hai, to shant raho
+                // console.log("🕵️ SPY: No Camera URL found. Sleeping 10s...");
+                await new Promise(r => setTimeout(r, 10000)); 
+                continue; 
             }
 
-            // 2. Check for Specific Tasks (Agar tu kuch puche)
+            const CAMERA_URL = data.value;
+
+            // 🕵️ SPY ACTION 2: Camera Check
+            // console.log(`🕵️ SPY: Trying to connect to ${CAMERA_URL}...`);
+            
+            try {
+                const res = await fetch(CAMERA_URL, { method: 'HEAD' }); // Sirf check kar rahe hain, download nahi
+                if (res.ok) {
+                    // Camera Zinda hai
+                    // process.stdout.write("👁️"); 
+                } else {
+                    console.log(`❌ SPY ALERT: Camera URL is Dead (${res.status}). Updating DB...`);
+                    // Database ko bata do ki URL mar gaya
+                    await supabase.from('config_store').update({ value: 'WAITING' }).eq('key', 'CAMERA_URL');
+                }
+            } catch (networkError) {
+                console.log(`❌ SPY ALERT: Connection Failed. (${networkError.code}). URL expire ho gaya hai.`);
+                // URL expire ho gaya, DB reset karo
+                await supabase.from('config_store').update({ value: 'WAITING' }).eq('key', 'CAMERA_URL');
+            }
+
+            // 🕵️ SPY ACTION 3: Task Queue Check
             const { data: task } = await supabase.from('task_queue').select('*').eq('status', 'PENDING').eq('task_type', 'VISION').limit(1).single();
             if (task) {
-                console.log(`\n📸 FOCUSING ON: ${task.prompt}`);
-                await supabase.from('task_queue').update({ status: 'PROCESSING' }).eq('id', task.id);
-                // Save this specific moment
-                await supabase.from('task_queue').update({ status: 'COMPLETED', result: { success: true, msg: "I see you." } }).eq('id', task.id);
+                console.log(`\n📸 EXECUTING TASK: ${task.prompt}`);
+                await supabase.from('task_queue').update({ status: 'COMPLETED', result: { msg: "Task Done" } }).eq('id', task.id);
             }
 
         } catch (e) {
-            // Ignore small errors to keep staring
+            console.log("⚠️ CRITICAL SPY ERROR:", e.message);
         }
         
-        // Sirf 3 second ka gap (Pehle 5 tha)
-        await new Promise(r => setTimeout(r, 3000));
+        // Har loop ke baad 5 second ka break
+        await new Promise(r => setTimeout(r, 5000));
     }
 }
+
+// Start the Loop
 robotLoop();
 
