@@ -1,11 +1,8 @@
-// ROBOT SLEEP MODE
-console.log("🦾 NEHIRA VISION: STANDBY MODE (Waiting for activation command...)");
+// DEAD ROBOT - DO NOT WAKE UP
+console.log("💀 NEHIRA VISION: TERMINATED.");
 
-async function robotLoop() {
-    while(true) {
-        // Sirf 1 ghante mein ek baar check karegi taaki logs saaf rahein
-        await new Promise(r => setTimeout(r, 3600000)); 
-    }
-}
-robotLoop();
+// Ek empty loop jo kuch nahi karta, bas process zinda rakhta hai taaki crash na ho
+setInterval(() => {
+  // Sannata...
+}, 1000 * 60 * 60 * 24); // 24 Ghante mein ek baar saans lega
 
