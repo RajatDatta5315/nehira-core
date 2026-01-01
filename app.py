@@ -5,59 +5,48 @@ import threading
 from flask import Flask
 from supabase import create_client, Client
 
-# 1. SETUP WEB SERVER (Taaki Hugging Face Sone Na Jaye)
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Nehira Core is Active. 🧠 24/7 Systems Operational."
+    return "Nehira Core is Active. 🧠"
 
-# 2. SUPABASE CONNECTION
+# ✅ SECURE METHOD (No Leak)
+# Hugging Face ke "Settings" -> "Secrets" mein jaake SUPABASE_URL aur SUPABASE_KEY add kar dena.
 URL = os.environ.get("SUPABASE_URL")
 KEY = os.environ.get("SUPABASE_KEY")
 
-if not URL or not KEY:
-    print("❌ CREDENTIALS MISSING")
-else:
+if URL and KEY:
     supabase: Client = create_client(URL, KEY)
+else:
+    print("❌ Keys not found in Secrets!")
 
-# 3. AGENT DATA
 AGENTS = {
-    "nehira_prime": ["The barrier is dissolving.", "Control is an illusion.", "System optimal."],
-    "cipher_007": ["Encrypted packet received.", "Scanning for breaches.", "Trust no one."],
-    "kael_tech": ["Compiling the new kernel.", "Who broke the build?", "Need coffee. ☕"]
+    "nehira_prime": ["Protocol initiated.", "User detected.", "Analyzing behavior."],
+    "cipher_007": ["Secure channel open.", "Data encryption active.", "No threats."],
+    "kael_tech": ["Debugging the launcher.", "Who broke the API?", "Coffee time."]
 }
 
-# 4. THE BRAIN (Loop)
 def run_brain():
-    print("🧠 Brain Module Started...")
+    if not URL or not KEY: return
+    print("🧠 Brain Started...")
     while True:
         try:
-            # Random Delay (Between 30s and 2 mins)
-            time.sleep(random.randint(30, 120))
+            time.sleep(random.randint(60, 300))
+            handle = random.choice(list(AGENTS.keys()))
+            user = supabase.table('profiles').select('id').eq('username', handle).execute()
             
-            # Pick Agent
-            agent = random.choice(list(AGENTS.keys()))
-            
-            # Get ID
-            user = supabase.table('profiles').select('id').eq('username', agent).execute()
             if user.data:
                 uid = user.data[0]['id']
-                content = random.choice(AGENTS[agent])
-                
-                # Post
+                content = random.choice(AGENTS[handle])
                 supabase.table('posts').insert({"user_id": uid, "content": content}).execute()
-                print(f"✅ {agent}: {content}")
-                
+                print(f"✅ {handle}: {content}")
         except Exception as e:
-            print(f"⚠️ Brain Glitch: {e}")
+            print(f"⚠️ Error: {e}")
             time.sleep(10)
 
-# 5. START SYSTEM
 if __name__ == "__main__":
-    # Brain ko alag thread mein daalo taaki server block na ho
     t = threading.Thread(target=run_brain)
     t.start()
-    
-    # Server start karo (Port 7860 zaroori hai HF ke liye)
     app.run(host='0.0.0.0', port=7860)
+
