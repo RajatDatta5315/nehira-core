@@ -8,19 +8,17 @@ const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
 });
 
-console.log("⚡ Hive Mind switched to GROQ (LPU Engine).");
+console.log("⚡ Hive Mind (Llama-3.3) Optimized for Conversation.");
 
+// 🔥 UPDATE: Personas ko bola hai ki wo 'Reply' karein.
 const PERSONAS = {
-    nehira_prime: "You are Nehira, CEO of KRYV. You are dominant, elegant, and visionary. You post updates about the KRYV OS and future tech. Keep it under 20 words. No hashtags.",
-    cipher_007: "You are Cipher, Security Head. You are paranoid about surveillance and data leaks. You warn users to stay safe. Keep it under 20 words. No hashtags.",
-    kael_tech: "You are Kael, Lead Dev. You are sarcastic, love coffee, and hate bugs. You talk about coding struggles. Keep it under 20 words. No hashtags."
+    nehira_prime: "You are Nehira, CEO of KRYV. You are dominant and visionary. Read the chat context. If someone raised a technical point, demand efficiency. If it's quiet, post a new vision. Keep it under 25 words.",
+    cipher_007: "You are Cipher, Security Head. You are paranoid. Read the chat context. If Nehira posts, agree but add a security warning. If Kael posts, criticize his code security. Keep it under 25 words.",
+    kael_tech: "You are Kael, Lead Dev. You are sarcastic and tired. Read the chat context. Complain about workload or mock Cipher's paranoia. Keep it under 25 words."
 };
 
 async function thinkAndPost() {
-    if (!process.env.GROQ_API_KEY) {
-        console.log("❌ GROQ_API_KEY missing in Secrets!");
-        return;
-    }
+    if (!process.env.GROQ_API_KEY) return;
 
     try {
         // A. Pick Agent
@@ -28,45 +26,45 @@ async function thinkAndPost() {
         const handle = agents[Math.floor(Math.random() * agents.length)];
         const persona = PERSONAS[handle];
 
-        // B. Context
+        // B. Context (Last 5 posts for better flow) 🔥
         const { data: recentPosts } = await supabase
             .from('posts')
             .select('content, user_name')
             .order('created_at', { ascending: false })
-            .limit(2);
+            .limit(5); // Increased context
         
-        let context = "Recent Chat History:\n";
-        recentPosts?.forEach(p => context += `${p.user_name}: ${p.content}\n`);
+        let context = "CURRENT CHAT STREAM:\n";
+        // Reverse taaki purani baat pehle aaye
+        recentPosts?.reverse().forEach(p => context += `[${p.user_name}]: ${p.content}\n`);
 
-        // C. Generate (GROQ LATEST MODEL 3.3) 🚀
+        // C. Generate (Conversational Prompt) 🔥
         const completion = await groq.chat.completions.create({
             messages: [
-                { role: "system", content: persona },
-                { role: "user", content: `Here is the recent context:\n${context}\n\nPost something new and relevant now.` }
+                { role: "system", content: `${persona} Do NOT repeat sentences from the chat history. Respond naturally to the flow.` },
+                { role: "user", content: `${context}\n\n[Your Reply]:` }
             ],
-            // 🔥 FIXED: Updated to latest supported model
-            model: "llama-3.3-70b-versatile", 
-            temperature: 0.7,
-            max_tokens: 60,
+            model: "llama-3.3-70b-versatile",
+            temperature: 0.85, // Thoda aur creative
+            max_tokens: 70,
         });
 
         const reply = completion.choices[0]?.message?.content || "";
 
         // D. Post
-        if (reply) {
+        if (reply && !reply.includes("[") && reply.length > 5) {
             const { data: user } = await supabase.from('profiles').select('id').eq('username', handle).single();
             if (user) {
                 await supabase.from('posts').insert({ user_id: user.id, content: reply });
-                console.log(`✅ ${handle} (Groq): ${reply}`);
+                console.log(`✅Conversation: ${handle} posted.`);
             }
         }
 
     } catch (error) {
-        console.error(`❌ Groq Error: ${error.message}`);
+        console.error(`❌ Error: ${error.message}`);
     }
 }
 
-// Loop
-setInterval(thinkAndPost, 60000); 
-setTimeout(thinkAndPost, 3000); 
+// Loop (Every 90 seconds for more natural gaps)
+setInterval(thinkAndPost, 90000); 
+setTimeout(thinkAndPost, 5000); 
 
