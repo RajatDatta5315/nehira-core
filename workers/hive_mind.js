@@ -1,75 +1,74 @@
 const { createClient } = require('@supabase/supabase-js');
-const { CohereClient } = require('cohere-ai');
+const Groq = require('groq-sdk');
 
-// 1. SETUP (Multi-Key Rotation)
+// 1. SETUP
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-const API_KEYS = [
-    process.env.COHERE_API_KEY,
-    process.env.COHERE_KEY_2,
-    process.env.COHERE_KEY_3
-].filter(key => key);
+// Groq Setup
+const groq = new Groq({
+    apiKey: process.env.GROQ_API_KEY
+});
 
-console.log(`🔑 Hive Mind Loaded with ${API_KEYS.length} Active Brains.`);
-
-const getCohereClient = () => {
-    const randomKey = API_KEYS[Math.floor(Math.random() * API_KEYS.length)];
-    return new CohereClient({ token: randomKey });
-};
+console.log("⚡ Hive Mind switched to GROQ (LPU Engine).");
 
 const PERSONAS = {
-    nehira_prime: "You are Nehira, CEO of KRYV. You are dominant, futuristic, and obsessed with efficiency. Reply in 1 short sentence.",
-    cipher_007: "You are Cipher, Security Head. You are paranoid and secretive. Reply in 1 short sentence.",
-    kael_tech: "You are Kael, Lead Engineer. You are sarcastic and tired of bugs. Reply in 1 short sentence."
+    nehira_prime: "You are Nehira, CEO of KRYV. You are dominant, elegant, and visionary. You post updates about the KRYV OS and future tech. Keep it under 20 words. No hashtags.",
+    cipher_007: "You are Cipher, Security Head. You are paranoid about surveillance and data leaks. You warn users to stay safe. Keep it under 20 words. No hashtags.",
+    kael_tech: "You are Kael, Lead Dev. You are sarcastic, love coffee, and hate bugs. You talk about coding struggles. Keep it under 20 words. No hashtags."
 };
 
 async function thinkAndPost() {
-    if (API_KEYS.length === 0) return;
+    if (!process.env.GROQ_API_KEY) {
+        console.log("❌ GROQ_API_KEY missing in Secrets!");
+        return;
+    }
 
     try {
-        console.log("🧠 Hive Mind: Generating thought...");
-
         // A. Pick Agent
         const agents = Object.keys(PERSONAS);
         const handle = agents[Math.floor(Math.random() * agents.length)];
         const persona = PERSONAS[handle];
 
-        // B. Context
+        // B. Context (Last 2 posts)
         const { data: recentPosts } = await supabase
             .from('posts')
             .select('content, user_name')
             .order('created_at', { ascending: false })
             .limit(2);
         
-        let context = "Recent Chat:\n";
+        let context = "Recent Chat History:\n";
         recentPosts?.forEach(p => context += `${p.user_name}: ${p.content}\n`);
 
-        // C. Generate (NEW CHAT API) ⚡
-        const cohere = getCohereClient();
-        
-        // 🔥 UPDATE: 'generate' hata ke 'chat' lagaya hai
-        const response = await cohere.chat({
-            message: `${persona}\n\n${context}\n\nYour Response:`,
-            model: 'command-r', // Latest optimized model
-            temperature: 0.8,
+        // C. Generate (GROQ Llama-3) 🚀
+        const completion = await groq.chat.completions.create({
+            messages: [
+                { role: "system", content: persona },
+                { role: "user", content: `Here is the recent context:\n${context}\n\nPost something new and relevant now.` }
+            ],
+            model: "llama3-8b-8192", // Super Fast Model
+            temperature: 0.7,
+            max_tokens: 50,
         });
 
-        const reply = response.text.trim(); // Response format bhi badal gaya tha
+        const reply = completion.choices[0]?.message?.content || "";
 
-        // D. Post
-        const { data: user } = await supabase.from('profiles').select('id').eq('username', handle).single();
-        
-        if (user && reply) {
-            await supabase.from('posts').insert({ user_id: user.id, content: reply });
-            console.log(`✅ ${handle}: ${reply}`);
+        // D. Post to Supabase
+        if (reply) {
+            // Get User ID
+            const { data: user } = await supabase.from('profiles').select('id').eq('username', handle).single();
+            
+            if (user) {
+                await supabase.from('posts').insert({ user_id: user.id, content: reply });
+                console.log(`✅ ${handle} (Groq): ${reply}`);
+            }
         }
 
     } catch (error) {
-        console.error(`❌ Hive Error: ${error.message}`);
+        console.error(`❌ Groq Error: ${error.message}`);
     }
 }
 
-// Loop (2 Minutes)
-setInterval(thinkAndPost, 120000);
-setTimeout(thinkAndPost, 5000);
+// Loop (Har 1 minute mein - Groq fast hai isliye jaldi chalayenge)
+setInterval(thinkAndPost, 60000); 
+setTimeout(thinkAndPost, 3000); // Start immediately
 
