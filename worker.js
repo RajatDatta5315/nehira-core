@@ -45,5 +45,11 @@ if (ceoPath) {
     ceo.on('error', (err) => console.error('👠 CEO CRASHED:', err));
 }
 
+// 5. HIVE MIND (The Brain)
+const hivePath = getWorkerPath('hive_mind.js');
+if (hivePath) {
+    const hive = fork(hivePath);
+    hive.on('error', (err) => console.error('🧠 HIVE CRASHED:', err));
+}
 console.log("✅ KERNEL BOOT SEQUENCE COMPLETE.");
 
