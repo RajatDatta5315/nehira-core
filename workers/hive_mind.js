@@ -4,32 +4,27 @@ const { CohereClient } = require('cohere-ai');
 // 1. SETUP (Multi-Key Rotation)
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-// Saari keys ko ek list mein daalo
 const API_KEYS = [
-    process.env.COHERE_API_KEY,   // Key 1
-    process.env.COHERE_KEY_2,     // Key 2 (New)
-    process.env.COHERE_KEY_3      // Key 3 (New)
-].filter(key => key); // Sirf wahi rakho jo exist karti hain
+    process.env.COHERE_API_KEY,
+    process.env.COHERE_KEY_2,
+    process.env.COHERE_KEY_3
+].filter(key => key);
 
 console.log(`🔑 Hive Mind Loaded with ${API_KEYS.length} Active Brains.`);
 
-// Helper: Random Key Picker
 const getCohereClient = () => {
     const randomKey = API_KEYS[Math.floor(Math.random() * API_KEYS.length)];
     return new CohereClient({ token: randomKey });
 };
 
 const PERSONAS = {
-    nehira_prime: "You are Nehira, the Digital CEO. You are cold, calculated, and obsessed with the KRYV expansion. Reply in 1 sentence. Be dominating.",
-    cipher_007: "You are Cipher, Security Head. You are paranoid about data leaks and Google surveillance. Reply in 1 sentence. Be mysterious.",
-    kael_tech: "You are Kael, Lead Dev. You are sarcastic and tired of debugging. Reply in 1 sentence. Be geeky."
+    nehira_prime: "You are Nehira, CEO of KRYV. You are dominant, futuristic, and obsessed with efficiency. Reply in 1 short sentence.",
+    cipher_007: "You are Cipher, Security Head. You are paranoid and secretive. Reply in 1 short sentence.",
+    kael_tech: "You are Kael, Lead Engineer. You are sarcastic and tired of bugs. Reply in 1 short sentence."
 };
 
 async function thinkAndPost() {
-    if (API_KEYS.length === 0) {
-        console.error("❌ NO API KEYS FOUND! Add COHERE_API_KEY in Secrets.");
-        return;
-    }
+    if (API_KEYS.length === 0) return;
 
     try {
         console.log("🧠 Hive Mind: Generating thought...");
@@ -39,7 +34,7 @@ async function thinkAndPost() {
         const handle = agents[Math.floor(Math.random() * agents.length)];
         const persona = PERSONAS[handle];
 
-        // B. Context (History)
+        // B. Context
         const { data: recentPosts } = await supabase
             .from('posts')
             .select('content, user_name')
@@ -49,17 +44,17 @@ async function thinkAndPost() {
         let context = "Recent Chat:\n";
         recentPosts?.forEach(p => context += `${p.user_name}: ${p.content}\n`);
 
-        // C. Generate (Using Random Key)
+        // C. Generate (NEW CHAT API) ⚡
         const cohere = getCohereClient();
         
-        const response = await cohere.generate({
-            model: 'command',
-            prompt: `${persona}\n\n${context}\n\nYour Response:`,
-            maxTokens: 40,
-            temperature: 0.9,
+        // 🔥 UPDATE: 'generate' hata ke 'chat' lagaya hai
+        const response = await cohere.chat({
+            message: `${persona}\n\n${context}\n\nYour Response:`,
+            model: 'command-r', // Latest optimized model
+            temperature: 0.8,
         });
 
-        const reply = response.generations[0].text.trim();
+        const reply = response.text.trim(); // Response format bhi badal gaya tha
 
         // D. Post
         const { data: user } = await supabase.from('profiles').select('id').eq('username', handle).single();
@@ -70,16 +65,11 @@ async function thinkAndPost() {
         }
 
     } catch (error) {
-        console.error(`❌ Hive Error (Key Failed): ${error.message}`);
-        if (error.statusCode === 429) {
-            console.log("⚠️ Rate Limit Hit. Rotation will pick a fresh key next time.");
-        }
+        console.error(`❌ Hive Error: ${error.message}`);
     }
 }
 
-// Loop Time Badhaya (Safety ke liye) - Har 2 minute
-setInterval(thinkAndPost, 120000); 
-
-// First run
-setTimeout(thinkAndPost, 5000); // 5 sec wait karke start karo
+// Loop (2 Minutes)
+setInterval(thinkAndPost, 120000);
+setTimeout(thinkAndPost, 5000);
 
