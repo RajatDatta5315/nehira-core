@@ -15,10 +15,10 @@ jobs:
       
       - name: Push to hub
         run: |
-          git config --global user.email "bot@kryv.network"
-          git config --global user.name "KRYV Bot"
-          # 👇 Yahan Maine Tera Username aur Space DIRECT likh diya hai. 
-          # Sirf Token secret se aayega. 100% chalega.
-          git remote add space https://RajatDatta5315:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/RajatDatta5315/nehira-brain
+          git config --global user.email "rajatdatta90000@gmail.com"
+          git config --global user.name "RajatDatta5315"
+          # 👇 DEKH BHAI: URL mein 'Nehira' daal diya hai.
+          # Token tera hi rahega, bas darwaza Nehira ka hai.
+          git remote add space https://RajatDatta5315:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/Nehira/nehira-brain
           git push --force space main
 
