@@ -2,7 +2,6 @@ name: Sync to Hugging Face hub
 on:
   push:
     branches: [main]
-  # Manually trigger karne ke liye
   workflow_dispatch:
 
 jobs:
@@ -15,14 +14,11 @@ jobs:
           lfs: true
       
       - name: Push to hub
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_USERNAME: ${{ secrets.HF_USERNAME }}
-          HF_SPACE_NAME: ${{ secrets.HF_SPACE_NAME }}
         run: |
           git config --global user.email "bot@kryv.network"
           git config --global user.name "KRYV Bot"
-          # 👇 Ab ye secrets use karega, hardcoded naam nahi
-          git remote add space https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME
+          # 👇 Yahan Maine Tera Username aur Space DIRECT likh diya hai. 
+          # Sirf Token secret se aayega. 100% chalega.
+          git remote add space https://RajatDatta5315:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/RajatDatta5315/nehira-brain
           git push --force space main
 
