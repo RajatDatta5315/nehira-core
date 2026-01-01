@@ -26,5 +26,6 @@ RUN chmod -R 777 /app
 RUN echo "FORCE REBUILD: Version 2.0 - Kill The Robot" > cache_bust.txt
 
 # Run the Manager
-CMD ["npm", "run", "worker"]
+CMD ["node", "worker.js"]
+
 
