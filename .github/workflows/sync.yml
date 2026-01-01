@@ -10,15 +10,24 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0
-          lfs: true
+          fetch-depth: 1 # Sirf abhi ka code lo, purana kachra nahi
       
       - name: Push to hub
         run: |
-          git config --global user.email "rajatdatta90000@gmail.com"
-          git config --global user.name "RajatDatta5315"
-          # 👇 DEKH BHAI: URL mein 'Nehira' daal diya hai.
-          # Token tera hi rahega, bas darwaza Nehira ka hai.
+          # 1. PURANI HISTORY UDA DO (The Fix)
+          rm -rf .git
+          
+          # 2. FRESH START
+          git init -b main
+          git config --global user.email "bot@kryv.network"
+          git config --global user.name "KRYV Bot"
+          
+          # 3. ADD FILES (Jo abhi hain, bina Icon ke)
+          git add .
+          git commit -m "Fresh Deploy - No Ghost Files"
+          
+          # 4. PUSH TO NEHIRA
+          # Hum 'HEAD:main' use karenge taaki zabardasti overwrite ho jaye
           git remote add space https://RajatDatta5315:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/Nehira/nehira-brain
           git push --force space main
 
