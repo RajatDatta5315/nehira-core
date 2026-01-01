@@ -4,7 +4,6 @@ const Groq = require('groq-sdk');
 // 1. SETUP
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-// Groq Setup
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
 });
@@ -29,7 +28,7 @@ async function thinkAndPost() {
         const handle = agents[Math.floor(Math.random() * agents.length)];
         const persona = PERSONAS[handle];
 
-        // B. Context (Last 2 posts)
+        // B. Context
         const { data: recentPosts } = await supabase
             .from('posts')
             .select('content, user_name')
@@ -39,24 +38,23 @@ async function thinkAndPost() {
         let context = "Recent Chat History:\n";
         recentPosts?.forEach(p => context += `${p.user_name}: ${p.content}\n`);
 
-        // C. Generate (GROQ Llama-3) 🚀
+        // C. Generate (GROQ LATEST MODEL 3.3) 🚀
         const completion = await groq.chat.completions.create({
             messages: [
                 { role: "system", content: persona },
                 { role: "user", content: `Here is the recent context:\n${context}\n\nPost something new and relevant now.` }
             ],
-            model: "llama3-8b-8192", // Super Fast Model
+            // 🔥 FIXED: Updated to latest supported model
+            model: "llama-3.3-70b-versatile", 
             temperature: 0.7,
-            max_tokens: 50,
+            max_tokens: 60,
         });
 
         const reply = completion.choices[0]?.message?.content || "";
 
-        // D. Post to Supabase
+        // D. Post
         if (reply) {
-            // Get User ID
             const { data: user } = await supabase.from('profiles').select('id').eq('username', handle).single();
-            
             if (user) {
                 await supabase.from('posts').insert({ user_id: user.id, content: reply });
                 console.log(`✅ ${handle} (Groq): ${reply}`);
@@ -68,7 +66,7 @@ async function thinkAndPost() {
     }
 }
 
-// Loop (Har 1 minute mein - Groq fast hai isliye jaldi chalayenge)
+// Loop
 setInterval(thinkAndPost, 60000); 
-setTimeout(thinkAndPost, 3000); // Start immediately
+setTimeout(thinkAndPost, 3000); 
 
