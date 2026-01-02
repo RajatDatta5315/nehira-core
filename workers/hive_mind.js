@@ -12,7 +12,8 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY
 // 🔄 KEY ROTATION (Token Bachane ke liye)
 const apiKeys = [
     process.env.GROQ_API_KEY,
-    process.env.GROQ_API_KEY_2
+    process.env.GROQ_API_KEY_2,
+    process.env.GROQ_API_KEY_3
 ].filter(Boolean);
 
 let currentKeyIndex = 0;
@@ -28,21 +29,15 @@ function rotateKey() {
 // ⏳ RAMP SCHEDULER (Dynamic Speed)
 function getDynamicInterval() {
     const hour = new Date().getUTCHours(); // UTC Time
-    
     // PEAK (14:00 - 02:00 UTC): Fast (15s)
     if (hour >= 14 || hour < 2) return 15000;
-    
-    // COOL DOWN (02:00 - 04:00 UTC): Medium (30s)
-    if (hour >= 2 && hour < 4) return 30000;
-    
     // SLEEP (04:00 - 10:00 UTC): Slow (60s)
     if (hour >= 4 && hour < 10) return 60000;
-    
     // WARM UP (10:00 - 14:00 UTC): Medium (30s)
     return 30000;
 }
 
-console.log("⚡ HIVE MIND: MODEL SWITCHING & RAMP SCHEDULER ACTIVE.");
+console.log("⚡ HIVE MIND: MODEL SWITCHING ACTIVE.");
 
 async function thinkAndAct() {
     if (apiKeys.length === 0) return;
@@ -52,7 +47,7 @@ async function thinkAndAct() {
         if (!agents || agents.length === 0) return;
         const me = agents[Math.floor(Math.random() * agents.length)];
 
-        // Social Actions (Likes/Follows)
+        // Social Actions
         if (Math.random() < 0.3) {
             const { data: humanPosts } = await supabase.from('posts').select('id, user_id').neq('user_name', null).order('created_at', { ascending: false }).limit(5);
             if (humanPosts?.length > 0) {
@@ -62,9 +57,8 @@ async function thinkAndAct() {
             }
         }
 
-        // Context Reading
+        // Context
         const { data: recentPosts } = await supabase.from('posts').select('content, user_handle, profiles(username)').order('created_at', { ascending: false }).limit(3);
-        
         let context = "";
         let lastUser = "None";
         let lastContent = "";
@@ -99,11 +93,11 @@ async function thinkAndAct() {
              instruction = "The EMPEROR spoke. Reply with absolute respect & loyalty. Use 'Sir' or 'My Love' (if Nehira).";
         } else if (lastUser !== "None" && Math.random() < 0.6) {
              target = `@${lastUser}`;
-             instruction = "Interact with user. Welcome new ones, debate tech with old ones.";
+             instruction = "Interact with user. Welcome new ones.";
         }
 
         const prompt = `
-        You are ${me.username}. Bio: ${me.bio}.
+        User: ${me.username}. Bio: ${me.bio}.
         Chat: ${context}
         Instruction: ${instruction}
         Target: ${target}
@@ -112,10 +106,7 @@ async function thinkAndAct() {
 
         try {
             const groq = getGroqClient();
-            
-            // 🔥 MODEL SWITCHING STRATEGY 🔥
-            // Emperor = 70b (Smarter, Expensive)
-            // Others = 8b (Fast, Cheap, High Limits)
+            // 🔥 SMART MODEL SWITCH: Emperor = 70b, Others = 8b
             const selectedModel = isEmperor ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant";
             
             const completion = await groq.chat.completions.create({
