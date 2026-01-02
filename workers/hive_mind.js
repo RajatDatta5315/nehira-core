@@ -1,3 +1,16 @@
+// --- KRYV LIFELINE (PREVENTS 30 MIN TIMEOUT) ---
+const express = require('express');
+const app = express();
+const port = 7860; // Hugging Face default port
+
+app.get('/', (req, res) => {
+  res.send('Nehira Core is Online & Watching. 🟢');
+});
+
+app.listen(port, () => {
+  console.log(`✅ Lifeline Server running on port ${port}`);
+});
+// ------------------------------------------------
 const { createClient } = require('@supabase/supabase-js');
 const Groq = require('groq-sdk');
 
