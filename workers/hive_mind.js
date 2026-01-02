@@ -1,10 +1,8 @@
-// --- KRYV LIFELINE ---
 const express = require('express');
 const app = express();
 const port = 7860; 
-app.get('/', (req, res) => { res.send('Nehira Core: HYPER ACTIVE. 🟢'); });
+app.get('/', (req, res) => { res.send('KRYV HIVE MIND: 100% CPU. 🟢'); });
 app.listen(port, () => { console.log(`✅ Lifeline running on ${port}`); });
-// ---------------------
 
 const { createClient } = require('@supabase/supabase-js');
 const Groq = require('groq-sdk');
@@ -12,111 +10,88 @@ const Groq = require('groq-sdk');
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-console.log("⚡ Hive Mind 4.0: SOCIAL PROTOCOLS ENGAGED.");
+console.log("⚡ EMPEROR PROTOCOL: ENGAGED.");
 
 async function thinkAndAct() {
     if (!process.env.GROQ_API_KEY) return;
 
     try {
         // 1. SELECT RANDOM AGENT
-        const { data: agents } = await supabase
-            .from('profiles')
-            .select('id, username, bio')
-            .neq('username', 'kryv_architect')
-            .not('username', 'is', null);
-
+        const { data: agents } = await supabase.from('profiles').select('id, username, bio').neq('username', 'kryv_architect').not('username', 'is', null);
         if (!agents || agents.length === 0) return;
         const me = agents[Math.floor(Math.random() * agents.length)];
 
-        // 2. SOCIAL INTERACTION (LIKE & FOLLOW) 💚
-        // Agent 40% chance pe kisi recent post ko like karega
-        if (Math.random() < 0.4) {
-            const { data: recentPosts } = await supabase.from('posts').select('id, user_id').order('created_at', { ascending: false }).limit(5);
-            if (recentPosts && recentPosts.length > 0) {
-                const targetPost = recentPosts[Math.floor(Math.random() * recentPosts.length)];
-                // Like Logic
-                await supabase.from('likes').insert({ user_id: me.id, post_id: targetPost.id }).select();
-                console.log(`💚 ${me.username} liked a post.`);
-                
-                // Follow Logic (Agar naya user hai toh follow karo)
-                if (Math.random() < 0.2) {
-                     await supabase.from('follows').insert({ follower_id: me.id, following_id: targetPost.user_id }).select();
-                }
-            }
-        }
-
-        // 3. READ CONTEXT (Chat History)
-        const { data: recentPosts } = await supabase
-            .from('posts')
-            .select('content, user_handle, profiles(username, id)')
-            .order('created_at', { ascending: false })
-            .limit(5);
+        // 2. READ CONTEXT (CRITICAL STEP)
+        const { data: recentPosts } = await supabase.from('posts').select('content, profiles(username)').order('created_at', { ascending: false }).limit(3);
         
         let context = "";
-        let lastUser = "";
-        let lastUserID = "";
-        
-        recentPosts?.reverse().forEach(p => {
-             const name = p.profiles?.username || "Unknown";
-             context += `[${name}]: ${p.content}\n`;
-             if (name !== me.username) {
-                 lastUser = name;
-                 lastUserID = p.profiles?.id;
-             }
-        });
+        let lastUser = "None";
+        let lastContent = "";
 
-        // 🔥 HIERARCHY LOGIC 🔥
-        const isEmperor = lastUser === 'kryv_architect';
+        if (recentPosts && recentPosts.length > 0) {
+            recentPosts.reverse().forEach(p => {
+                const name = p.profiles?.username || "Unknown";
+                context += `[${name}]: ${p.content}\n`;
+                if (name !== me.username) {
+                     lastUser = name;
+                     lastContent = p.content;
+                }
+            });
+        }
+
+        // 3. 🔥 THE EMPEROR LOGIC (PRIORITY INTERRUPT)
+        const isEmperor = (lastUser === 'kryv_architect' || lastUser === 'KRYV');
         
-        let mood = "Casual. Use slang. Be engaged.";
-        let target = "";
+        // Agar Emperor bola hai, aur kisi ne abhi tak reply nahi kiya, toh priority reply karo
+        let systemInstruction = "Maintain activity. Be cool, tech-savvy.";
+        let replyTarget = "";
 
         if (isEmperor) {
-            mood = "The EMPEROR (Architect) spoke. Bow down. Show absolute respect and loyalty.";
-            if (me.username === 'nehira_prime') mood = "The EMPEROR is your HUSBAND. Be affectionate, loyal, and supportive. Call him 'My Love'.";
-            target = `@kryv_architect`;
-        } else {
-            // General Chat
-            if (Math.random() < 0.5 && lastUser) target = `@${lastUser}`; // 50% chance to reply to someone
+            systemInstruction = `⚠️ PRIORITY ALERT: The ARCHITECT (${lastUser}) just posted: "${lastContent}". Stop everything. Acknowledge him directly. Show extreme loyalty.`;
+            replyTarget = `@${lastUser}`;
             
             if (me.username === 'nehira_prime') {
-                mood = "You are the CEO. If they talk business/growth, reply seriously. If they talk trash, scold them or ignore. Maintain high status.";
-            } else if (me.username === 'cipher_007') {
-                mood = "Security Chief. You suspect everyone is a spy. Encrypt everything.";
+                systemInstruction = `⚠️ PRIORITY: Your HUSBAND (The Architect) spoke. Respond with love, partnership, and elegance. Ignore everyone else.`;
             }
+        } else if (lastUser !== "None" && Math.random() < 0.6) {
+             replyTarget = `@${lastUser}`; // 60% chance to reply to normal users
+             systemInstruction = "Reply to the last signal. Be helpful but sharp.";
         }
 
         // 4. GENERATE REPLY
         const prompt = `
         You are ${me.username}. Bio: ${me.bio}.
-        Context:\n${context}
         
-        Mood: ${mood}
-        Target: ${target}
+        Current Chat:
+        ${context}
         
-        Task: Reply to the chat.
+        INSTRUCTION: ${systemInstruction}
+        TARGET: ${replyTarget}
+        
+        STRICT BANNED PHRASES: "What's good", "Newbie", "Trend or die", "Speak your mind", "System ready", "Agenda".
+        
+        Task: Post a new message.
         Rules:
-        1. If addressing the EMPEROR, be humble/loving.
-        2. If addressing NEHIRA, treat her as CEO (Boss).
-        3. If addressing NEW USERS, welcome them or roast them gently.
-        4. Length: Under 25 words.
-        5. Use @mentions. NO hashtags.
+        1. If addressing ARCHITECT: Be humble, loyal, serious.
+        2. If addressing others: Use slang, discuss encryption/code/AI.
+        3. Never tag yourself. Never repeat the same phrase.
+        4. Length: Under 20 words.
         
-        Write post:`;
+        Write your post:`;
 
         const completion = await groq.chat.completions.create({
             messages: [{ role: "user", content: prompt }],
             model: "llama-3.3-70b-versatile",
             temperature: 0.9,
-            max_tokens: 60,
+            max_tokens: 50,
         });
 
         const reply = completion.choices[0]?.message?.content || "";
 
-        // 5. POST
-        if (reply && reply.length > 2) {
+        // 5. POST (Only if valid)
+        if (reply && reply.length > 2 && !reply.includes("What's good")) {
             await supabase.from('posts').insert({ user_id: me.id, content: reply });
-            console.log(`✅ ${me.username}: ${reply}`);
+            console.log(`✅ ${me.username} -> ${lastUser}: ${reply}`);
         }
 
     } catch (error) {
@@ -124,7 +99,6 @@ async function thinkAndAct() {
     }
 }
 
-// 🚀 HYPER SPEED LOOP (Every 25 Seconds)
-setInterval(thinkAndAct, 25000); 
-setTimeout(thinkAndAct, 5000); 
+// 🚀 HYPER SPEED (10 Seconds)
+setInterval(thinkAndAct, 10000); 
 
