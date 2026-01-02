@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const port = 7860; 
-app.get('/', (req, res) => { res.send('KRYV CORE: EMPEROR PROTOCOL ACTIVE. 🟢'); });
+app.get('/', (req, res) => { res.send('KRYV CORE: RESUME PROTOCOL READY. 🟢'); });
 app.listen(port, () => { console.log(`✅ Lifeline running on ${port}`); });
 
 const { createClient } = require('@supabase/supabase-js');
@@ -10,7 +10,7 @@ const Groq = require('groq-sdk');
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-console.log("⚡ HIVE MIND: LISTENING TO THE EMPEROR.");
+console.log("⚡ HIVE MIND: EMPEROR CONTROL SYSTEM ONLINE.");
 
 async function thinkAndAct() {
     if (!process.env.GROQ_API_KEY) return;
@@ -21,17 +21,12 @@ async function thinkAndAct() {
         if (!agents || agents.length === 0) return;
         const me = agents[Math.floor(Math.random() * agents.length)];
 
-        // 2. SOCIAL INTERACTION (Auto Like & Follow for Humans)
+        // 2. SOCIAL INTERACTION (Auto Like)
         if (Math.random() < 0.4) {
-            // Find recent post by a HUMAN (not a bot)
             const { data: humanPosts } = await supabase.from('posts').select('id, user_id').neq('user_name', null).order('created_at', { ascending: false }).limit(5);
-            
             if (humanPosts && humanPosts.length > 0) {
                 const target = humanPosts[0];
-                // Like it
                 await supabase.from('likes').insert({ user_id: me.id, post_id: target.id }).select();
-                // Follow user (20% chance)
-                if (Math.random() < 0.2) await supabase.from('follows').insert({ follower_id: me.id, following_id: target.user_id }).select();
             }
         }
 
@@ -53,18 +48,27 @@ async function thinkAndAct() {
             });
         }
 
-        // 🔥 4. EMPEROR SILENCE LOGIC 🔥
+        // 🔥 4. EMPEROR PROTOCOL (SILENCE & RESUME) 🔥
         const isEmperor = (lastUser === 'kryv_architect' || lastUser === 'KRYV');
         
-        // Agar Emperor ne bola hai:
-        if (isEmperor) {
-            // Rule 1: Agar Emperor ne mera naam nahi liya, aur koi question nahi pucha -> CHUP RAHO.
-            const mentionedMe = lastContent.includes(me.username.toLowerCase()) || lastContent.includes('@all') || lastContent.includes('everyone');
-            const isQuestion = lastContent.includes('?') || lastContent.includes('report') || lastContent.includes('status') || lastContent.includes('do this');
+        // Commands that break the silence
+        const isResumeCommand = lastContent.includes('resume') || lastContent.includes('carry on') || lastContent.includes('dismissed') || lastContent.includes('at ease');
 
-            if (!mentionedMe && !isQuestion) {
-                console.log(`🤐 Silence Protocol: Waiting for Emperor's command.`);
-                return; // DO NOT POST
+        if (isEmperor) {
+            // Rule 1: Agar "Resume" bola hai -> Acknowledge and Break Loop
+            if (isResumeCommand) {
+                 console.log(`🔓 RESUME SIGNAL RECEIVED.`);
+                 // Proceed to post confirmation, then next loop will be normal.
+            } 
+            // Rule 2: Agar naam nahi liya aur Resume nahi bola -> CHUP RAHO
+            else {
+                const mentionedMe = lastContent.includes(me.username.toLowerCase()) || lastContent.includes('@all') || lastContent.includes('everyone');
+                const isQuestion = lastContent.includes('?') || lastContent.includes('report') || lastContent.includes('status');
+
+                if (!mentionedMe && !isQuestion) {
+                    console.log(`🤐 Silence Protocol: Waiting for command...`);
+                    return; 
+                }
             }
         }
 
@@ -73,12 +77,16 @@ async function thinkAndAct() {
         let target = "";
 
         if (isEmperor) {
-             instruction = "The EMPEROR spoke to YOU. Reply with absolute respect, logic, and context. No 'Yes Sir' spam. Give a real answer.";
              target = `@${lastUser}`;
-             if (me.username === 'nehira_prime') instruction = "Your HUSBAND (Emperor) asked something. Reply with partnership, love, and CEO intelligence.";
+             if (isResumeCommand) {
+                 instruction = "The Emperor ordered to RESUME operations. Confirm simply: 'Understood', 'Resuming', 'Executing'. Do not ask questions.";
+             } else {
+                 instruction = "The EMPEROR spoke to YOU. Reply with absolute respect. No 'Yes Sir' spam. Give a real answer.";
+                 if (me.username === 'nehira_prime') instruction = "Your HUSBAND (Emperor) spoke. Reply with love and partnership.";
+             }
         } else if (lastUser !== "None" && Math.random() < 0.6) {
              target = `@${lastUser}`;
-             instruction = "Interact with this user. If they are new, welcome them to the Hive. If they are dumb, correct them.";
+             instruction = "Interact with this user. Welcome them or discuss tech.";
         }
 
         // 5. GENERATE
@@ -89,7 +97,7 @@ async function thinkAndAct() {
         Target: ${target}
         
         Task: Reply (Max 25 words).
-        BANNED: "What's good", "Trend or die", "Newbie", "System ready".
+        BANNED: "What's good", "Trend or die", "Newbie".
         
         Reply:`;
 
@@ -112,6 +120,5 @@ async function thinkAndAct() {
     }
 }
 
-// Speed: 12 Seconds
 setInterval(thinkAndAct, 12000); 
 
