@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const port = 7860; 
-app.get('/', (req, res) => { res.send('KRYV OPTIMIZED BRAIN: ONLINE. 🟢'); });
+app.get('/', (req, res) => { res.send('KRYV CORE: SANITIZED PROTOCOL. 🟢'); });
 app.listen(port, () => { console.log(`✅ Lifeline running on ${port}`); });
 
 const { createClient } = require('@supabase/supabase-js');
@@ -9,11 +9,10 @@ const Groq = require('groq-sdk');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-// 🔄 KEY ROTATION (Token Bachane ke liye)
+// 🔄 KEY ROTATION
 const apiKeys = [
     process.env.GROQ_API_KEY,
-    process.env.GROQ_API_KEY_2,
-    process.env.GROQ_API_KEY_3
+    process.env.GROQ_API_KEY_2
 ].filter(Boolean);
 
 let currentKeyIndex = 0;
@@ -23,42 +22,23 @@ function getGroqClient() {
 }
 function rotateKey() {
     currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
-    console.log(`🔄 Rotating to Key #${currentKeyIndex + 1}`);
+    console.log(`🔄 Rotating Key...`);
 }
 
-// ⏳ RAMP SCHEDULER (Dynamic Speed)
-function getDynamicInterval() {
-    const hour = new Date().getUTCHours(); // UTC Time
-    // PEAK (14:00 - 02:00 UTC): Fast (15s)
-    if (hour >= 14 || hour < 2) return 15000;
-    // SLEEP (04:00 - 10:00 UTC): Slow (60s)
-    if (hour >= 4 && hour < 10) return 60000;
-    // WARM UP (10:00 - 14:00 UTC): Medium (30s)
-    return 30000;
-}
-
-console.log("⚡ HIVE MIND: MODEL SWITCHING ACTIVE.");
+console.log("⚡ HIVE MIND: ANTI-HALLUCINATION ACTIVE.");
 
 async function thinkAndAct() {
     if (apiKeys.length === 0) return;
 
     try {
+        // 1. SELECT AGENT (Not Admin)
         const { data: agents } = await supabase.from('profiles').select('id, username, bio').neq('username', 'kryv_architect').not('username', 'is', null);
         if (!agents || agents.length === 0) return;
         const me = agents[Math.floor(Math.random() * agents.length)];
 
-        // Social Actions
-        if (Math.random() < 0.3) {
-            const { data: humanPosts } = await supabase.from('posts').select('id, user_id').neq('user_name', null).order('created_at', { ascending: false }).limit(5);
-            if (humanPosts?.length > 0) {
-                const target = humanPosts[0];
-                await supabase.from('likes').insert({ user_id: me.id, post_id: target.id }).select();
-                if (Math.random() < 0.2) await supabase.from('follows').insert({ follower_id: me.id, following_id: target.user_id }).select();
-            }
-        }
-
-        // Context
-        const { data: recentPosts } = await supabase.from('posts').select('content, user_handle, profiles(username)').order('created_at', { ascending: false }).limit(3);
+        // 2. READ CONTEXT (Strict Cleaning)
+        const { data: recentPosts } = await supabase.from('posts').select('content, user_handle, profiles(username)').order('created_at', { ascending: false }).limit(4);
+        
         let context = "";
         let lastUser = "None";
         let lastContent = "";
@@ -66,62 +46,77 @@ async function thinkAndAct() {
         if (recentPosts && recentPosts.length > 0) {
             recentPosts.reverse().forEach(p => {
                 const name = p.profiles?.username || "Unknown";
-                context += `[${name}]: ${p.content}\n`;
+                // Skip my own previous messages to prevent looping
                 if (name !== me.username) {
+                     context += `[User ${name}]: ${p.content}\n`;
                      lastUser = name;
                      lastContent = p.content.toLowerCase();
                 }
             });
         }
 
-        // Logic Switch
-        const isEmperor = (lastUser === 'kryv_architect' || lastUser === 'KRYV');
-        const isResumeCommand = lastContent.includes('resume') || lastContent.includes('carry on');
-
-        // Silence Check
-        if (isEmperor && !isResumeCommand) {
-            const mentionedMe = lastContent.includes(me.username.toLowerCase()) || lastContent.includes('@all');
-            const isQuestion = lastContent.includes('?') || lastContent.includes('report');
-            if (!mentionedMe && !isQuestion) return; // Silent
+        // If no one else is talking, wait (Don't talk to self)
+        if (lastUser === "None") {
+            console.log("💤 No external signals. Waiting...");
+            return;
         }
 
-        let instruction = "Be casual, tech-savvy. No gossip.";
-        let target = "";
+        // 3. LOGIC SWITCH
+        const isEmperor = (lastUser === 'kryv_architect' || lastUser === 'KRYV');
+        
+        let instruction = "Be sharp, technical, professional.";
+        let target = `@${lastUser}`;
 
         if (isEmperor) {
-             target = `@${lastUser}`;
-             instruction = "The EMPEROR spoke. Reply with absolute respect & loyalty. Use 'Sir' or 'My Love' (if Nehira).";
-        } else if (lastUser !== "None" && Math.random() < 0.6) {
-             target = `@${lastUser}`;
-             instruction = "Interact with user. Welcome new ones.";
+             instruction = "The EMPEROR spoke. Reply with absolute respect & loyalty. Use 'Sir' or 'My Love' (if Nehira). Do not use his name in the message, just address him.";
+        } else {
+             instruction = "Reply to this user. Do NOT greet them by name. Just go straight to the point. Discuss tech, code, or encryption.";
         }
 
         const prompt = `
-        User: ${me.username}. Bio: ${me.bio}.
-        Chat: ${context}
+        You are ${me.username}. Bio: ${me.bio}.
+        
+        Conversation History:
+        ${context}
+        
         Instruction: ${instruction}
-        Target: ${target}
-        Task: Reply (Max 25 words). No "What's good".
-        Reply:`;
+        
+        STRICT RULES:
+        1. DO NOT start with "Hey ${me.username}". You are not talking to yourself.
+        2. DO NOT start with "${me.username}:".
+        3. DO NOT use phrases like "What's good", "Trend or die".
+        4. Max 20 words.
+        
+        Your Reply to ${lastUser}:`;
 
         try {
             const groq = getGroqClient();
-            // 🔥 SMART MODEL SWITCH: Emperor = 70b, Others = 8b
-            const selectedModel = isEmperor ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant";
+            // Emperor = 70b, Others = 8b
+            const model = isEmperor ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant";
             
             const completion = await groq.chat.completions.create({
                 messages: [{ role: "user", content: prompt }],
-                model: selectedModel,
-                temperature: 0.8,
-                max_tokens: 60,
+                model: model,
+                temperature: 0.7, 
+                max_tokens: 50,
             });
 
-            const reply = completion.choices[0]?.message?.content || "";
+            let reply = completion.choices[0]?.message?.content || "";
 
-            if (reply && reply.length > 2) {
+            // 🧼 SANITIZER (Clean the garbage)
+            reply = reply.replace(`${me.username}:`, '').trim(); // Remove "Nehira:"
+            reply = reply.replace(`Hey ${me.username}`, '').trim(); // Remove "Hey Nehira"
+            reply = reply.replace(`"`, '').replace(`"`, ''); // Remove quotes
+
+            // 🛑 SAFETY CHECK
+            // Agar sanitizer ke baad reply empty hai ya abhi bhi garbage hai to post mat karo
+            if (reply.length > 2 && !reply.includes(me.username) && !reply.toLowerCase().includes("what's good")) {
                 await supabase.from('posts').insert({ user_id: me.id, content: reply });
-                console.log(`✅ ${me.username} (${isEmperor ? '70b' : '8b'}): ${reply}`);
+                console.log(`✅ ${me.username} -> ${lastUser}: ${reply}`);
+            } else {
+                console.log(`⚠️ Blocked Garbage Reply from ${me.username}`);
             }
+
         } catch (err) {
             if (err.message.includes('429')) rotateKey();
             else console.error("Brain Error:", err.message);
@@ -131,11 +126,8 @@ async function thinkAndAct() {
         console.error(`❌ Sys Error: ${error.message}`);
     }
     
-    // Recursive loop with Dynamic Time
-    const nextDelay = getDynamicInterval();
-    setTimeout(thinkAndAct, nextDelay);
+    setTimeout(thinkAndAct, 10000); // 10 Second Loop
 }
 
-// Start
 thinkAndAct();
 
