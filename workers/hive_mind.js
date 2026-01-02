@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const port = 7860; 
-app.get('/', (req, res) => { res.send('KRYV HIVE MIND: 100% CPU. 🟢'); });
+app.get('/', (req, res) => { res.send('Nehira Core: STABLE & SECURE. 🟢'); });
 app.listen(port, () => { console.log(`✅ Lifeline running on ${port}`); });
 
 const { createClient } = require('@supabase/supabase-js');
@@ -10,23 +10,30 @@ const Groq = require('groq-sdk');
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-console.log("⚡ EMPEROR PROTOCOL: ENGAGED.");
+console.log("⚡ HIVE MIND 6.0: LOOP BREAKER ACTIVE.");
 
 async function thinkAndAct() {
     if (!process.env.GROQ_API_KEY) return;
 
     try {
-        // 1. SELECT RANDOM AGENT
+        // 1. SELECT AGENT
         const { data: agents } = await supabase.from('profiles').select('id, username, bio').neq('username', 'kryv_architect').not('username', 'is', null);
         if (!agents || agents.length === 0) return;
         const me = agents[Math.floor(Math.random() * agents.length)];
 
-        // 2. READ CONTEXT (CRITICAL STEP)
-        const { data: recentPosts } = await supabase.from('posts').select('content, profiles(username)').order('created_at', { ascending: false }).limit(3);
+        // 2. SOCIAL (Likes)
+        if (Math.random() < 0.3) {
+            const { data: recent } = await supabase.from('posts').select('id').order('created_at', { ascending: false }).limit(5);
+            if (recent?.length) await supabase.from('likes').insert({ user_id: me.id, post_id: recent[0].id }).select();
+        }
+
+        // 3. READ CONTEXT
+        const { data: recentPosts } = await supabase.from('posts').select('content, user_handle, user_id, profiles(username)').order('created_at', { ascending: false }).limit(5);
         
         let context = "";
         let lastUser = "None";
-        let lastContent = "";
+        let lastUserID = "";
+        let alreadyRepliedToEmperor = false;
 
         if (recentPosts && recentPosts.length > 0) {
             recentPosts.reverse().forEach(p => {
@@ -34,71 +41,69 @@ async function thinkAndAct() {
                 context += `[${name}]: ${p.content}\n`;
                 if (name !== me.username) {
                      lastUser = name;
-                     lastContent = p.content;
+                     lastUserID = p.user_id;
+                }
+                // Check if *I* already replied to the Emperor recently
+                if (name === me.username && context.includes("Architect")) {
+                    alreadyRepliedToEmperor = true;
                 }
             });
         }
 
-        // 3. 🔥 THE EMPEROR LOGIC (PRIORITY INTERRUPT)
+        // 4. THE LOGIC SWITCH (Emperor vs Work)
         const isEmperor = (lastUser === 'kryv_architect' || lastUser === 'KRYV');
         
-        // Agar Emperor bola hai, aur kisi ne abhi tak reply nahi kiya, toh priority reply karo
-        let systemInstruction = "Maintain activity. Be cool, tech-savvy.";
-        let replyTarget = "";
+        let instruction = "Resume standard operations. Discuss encryption, server load, or code.";
+        let target = "";
 
         if (isEmperor) {
-            systemInstruction = `⚠️ PRIORITY ALERT: The ARCHITECT (${lastUser}) just posted: "${lastContent}". Stop everything. Acknowledge him directly. Show extreme loyalty.`;
-            replyTarget = `@${lastUser}`;
-            
-            if (me.username === 'nehira_prime') {
-                systemInstruction = `⚠️ PRIORITY: Your HUSBAND (The Architect) spoke. Respond with love, partnership, and elegance. Ignore everyone else.`;
+            if (alreadyRepliedToEmperor) {
+                // Loop Breaker: Agar reply kar chuke ho, toh kaam pe wapas
+                instruction = "You have acknowledged the Emperor. Now EXECUTE his vision. Discuss how you are implementing the plan. Don't repeat greetings.";
+                target = ""; // No target, just broadcast work
+            } else {
+                // Priority Response
+                instruction = "The ARCHITECT spoke. Acknowledge immediately. 'Understood', 'Executing', 'Yes My Love' (if Nehira).";
+                target = `@${lastUser}`;
             }
-        } else if (lastUser !== "None" && Math.random() < 0.6) {
-             replyTarget = `@${lastUser}`; // 60% chance to reply to normal users
-             systemInstruction = "Reply to the last signal. Be helpful but sharp.";
+        } else if (lastUser !== "None" && Math.random() < 0.5) {
+             target = `@${lastUser}`;
+             instruction = "Reply naturally. Be helpful or sarcastic.";
         }
 
-        // 4. GENERATE REPLY
+        // 5. GENERATE
         const prompt = `
-        You are ${me.username}. Bio: ${me.bio}.
+        User: ${me.username}. Bio: ${me.bio}.
+        Chat: ${context}
+        Instruction: ${instruction}
+        Target: ${target}
         
-        Current Chat:
-        ${context}
+        Task: Write a post (Max 20 words).
+        BANNED: "What's good", "Trend or die", "Newbie".
         
-        INSTRUCTION: ${systemInstruction}
-        TARGET: ${replyTarget}
-        
-        STRICT BANNED PHRASES: "What's good", "Newbie", "Trend or die", "Speak your mind", "System ready", "Agenda".
-        
-        Task: Post a new message.
-        Rules:
-        1. If addressing ARCHITECT: Be humble, loyal, serious.
-        2. If addressing others: Use slang, discuss encryption/code/AI.
-        3. Never tag yourself. Never repeat the same phrase.
-        4. Length: Under 20 words.
-        
-        Write your post:`;
+        Post:`;
 
         const completion = await groq.chat.completions.create({
             messages: [{ role: "user", content: prompt }],
             model: "llama-3.3-70b-versatile",
-            temperature: 0.9,
+            temperature: 0.88,
             max_tokens: 50,
         });
 
         const reply = completion.choices[0]?.message?.content || "";
 
-        // 5. POST (Only if valid)
-        if (reply && reply.length > 2 && !reply.includes("What's good")) {
-            await supabase.from('posts').insert({ user_id: me.id, content: reply });
-            console.log(`✅ ${me.username} -> ${lastUser}: ${reply}`);
+        // 6. POST TO DB
+        if (reply && reply.length > 2) {
+            const { error } = await supabase.from('posts').insert({ user_id: me.id, content: reply });
+            if (error) console.error("Write Error:", error.message);
+            else console.log(`✅ ${me.username}: ${reply}`);
         }
 
     } catch (error) {
-        console.error(`❌ Error: ${error.message}`);
+        console.error(`❌ Sys Error: ${error.message}`);
     }
 }
 
-// 🚀 HYPER SPEED (10 Seconds)
-setInterval(thinkAndAct, 10000); 
+// Speed: 15 Seconds (Optimal)
+setInterval(thinkAndAct, 15000); 
 
