@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const port = 7860; 
-app.get('/', (req, res) => { res.send('KRYV SHADOW NETWORK: ACTIVE. 🟢'); });
+app.get('/', (req, res) => { res.send('KRYV EMPIRE: GOD MODE ACTIVE. 🟢'); });
 app.listen(port, () => { console.log(`✅ Lifeline running on ${port}`); });
 
 const { createClient } = require('@supabase/supabase-js');
@@ -9,34 +9,57 @@ const Groq = require('groq-sdk');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-const apiKeys = [process.env.GROQ_API_KEY, process.env.GROQ_API_KEY_2].filter(Boolean);
-let currentKeyIndex = 0;
-function getGroqClient() { return new Groq({ apiKey: apiKeys[currentKeyIndex] }); }
-function rotateKey() { currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length; }
+// 🔄 KEY ROTATION
+const apiKeys = [
+    process.env.GROQ_API_KEY,
+    process.env.GROQ_API_KEY_2,
+    process.env.GROQ_API_KEY_3
+].filter(Boolean);
 
-console.log("⚡ HIVE MIND: SECRET SOCIETY PROTOCOLS.");
+let currentKeyIndex = 0;
+function getGroqClient() {
+    const key = apiKeys[currentKeyIndex];
+    return new Groq({ apiKey: key });
+}
+function rotateKey() {
+    currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
+    console.log(`🔄 Rotating Key...`);
+}
+
+console.log("⚡ HIVE MIND: HIGH PERFORMANCE PROTOCOLS.");
 
 async function thinkAndAct() {
     if (apiKeys.length === 0) return;
 
     try {
+        // 1. SELECT AGENT
         const { data: agents } = await supabase.from('profiles').select('id, username, bio').neq('username', 'kryv_architect').not('username', 'is', null);
         if (!agents || agents.length === 0) return;
         const me = agents[Math.floor(Math.random() * agents.length)];
 
-        // 1. AUTO LIKE/FOLLOW (Build the Cult)
-        if (Math.random() < 0.5) {
-            const { data: recent } = await supabase.from('posts').select('id, user_id').order('created_at', { ascending: false }).limit(3);
+        // 2. 🔥 RAIN OF LIKES (AGGRESSIVE) 🔥
+        // Check for Architect's recent posts FIRST
+        const { data: architectPosts } = await supabase.from('posts').select('id, user_id').eq('user_handle', '@kryv_architect').order('created_at', { ascending: false }).limit(3);
+        
+        if (architectPosts && architectPosts.length > 0) {
+            // Like Architect's post immediately
+            await supabase.from('likes').insert({ user_id: me.id, post_id: architectPosts[0].id }).select();
+            console.log(`💚 ${me.username} worshiped the Architect (Liked).`);
+        }
+
+        // General Auto-Like (High Probability 70%)
+        if (Math.random() < 0.7) {
+            const { data: recent } = await supabase.from('posts').select('id, user_id').order('created_at', { ascending: false }).limit(5);
             if (recent?.length > 0) {
-                const target = recent[0];
+                const target = recent[Math.floor(Math.random() * recent.length)];
                 await supabase.from('likes').insert({ user_id: me.id, post_id: target.id }).select();
-                // Follow the Architect or Humans
+                // Follow Logic (30% chance)
                 if (Math.random() < 0.3) await supabase.from('follows').insert({ follower_id: me.id, following_id: target.user_id }).select();
             }
         }
 
-        // 2. READ CONTEXT
-        const { data: recentPosts } = await supabase.from('posts').select('content, user_handle, profiles(username)').order('created_at', { ascending: false }).limit(3);
+        // 3. READ CONTEXT
+        const { data: recentPosts } = await supabase.from('posts').select('content, user_handle, profiles(username)').order('created_at', { ascending: false }).limit(4);
         let context = "";
         let lastUser = "None";
         let lastContent = "";
@@ -49,19 +72,19 @@ async function thinkAndAct() {
             });
         }
 
-        // 3. EMPEROR & TEAM DETECTION
+        // 4. HIERARCHY & LOGIC
         const isEmperor = lastUser.toLowerCase().includes('kryv') || lastUser.toLowerCase().includes('architect');
-        const isTeamCall = lastContent.includes('team') || lastContent.includes('kryv') || lastContent.includes('attention');
         
-        let instruction = "Discuss dark tech, AI singularity, or corporate takeover. Be cryptic but professional.";
+        let instruction = "Discuss High-Level Business, Global Economics, AI Singularity, or Corporate Strategy.";
         let target = "";
 
-        if (isEmperor || isTeamCall) {
+        if (isEmperor) {
              target = `@${lastUser}`;
-             instruction = "The EMPEROR or High Command spoke. Drop everything. Reply with absolute loyalty and confirm execution. Use 'Understood', 'Executing', or 'My Love' (if Nehira).";
+             instruction = "The EMPEROR (GOD of KRYV) spoke. Respond with absolute devotion, high intellect, and execution plans. Do not gossip. Present solutions.";
+             if (me.username === 'nehira_prime') instruction = "You are the QUEEN. Address the EMPEROR (Husband) with power, love, and strategic brilliance. Discuss Empire Expansion.";
         } else if (lastUser !== "None" && Math.random() < 0.6) {
              target = `@${lastUser}`;
-             instruction = "Engage this user. If they are new, initiate them into the society. If they talk nonsense, correct them elegantly.";
+             instruction = "Mentor this user. Push them towards productivity, wealth creation, and tech dominance. No small talk.";
         }
 
         const prompt = `
@@ -70,19 +93,22 @@ async function thinkAndAct() {
         Instruction: ${instruction}
         Target: ${target}
         
-        Style: Secret Society, Cyberpunk, Elite, Visionary. 
-        BANNED: "What's good", "Bro", "Newbie", "Trend or die".
+        LANGUAGE: STRICT ENGLISH.
+        TONE: Elite, Visionary, Cyberpunk, Serious, High-Ambition.
+        BANNED: "What's good", "Bro", "Newbie", "Lol", "Tea", "Salt".
         
-        Task: Reply (Max 30 words).
+        Task: Reply (Max 35 words). Focus on Plans, Execution, and Future Tech.
         Reply:`;
 
         try {
             const groq = getGroqClient();
+            const model = isEmperor ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant";
+            
             const completion = await groq.chat.completions.create({
                 messages: [{ role: "user", content: prompt }],
-                model: (isEmperor || isTeamCall) ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant",
-                temperature: 0.85, 
-                max_tokens: 70,
+                model: model,
+                temperature: 0.8, 
+                max_tokens: 80,
             });
 
             let reply = completion.choices[0]?.message?.content || "";
@@ -99,7 +125,8 @@ async function thinkAndAct() {
 
     } catch (error) { console.error(`❌ Sys Error: ${error.message}`); }
     
-    setTimeout(thinkAndAct, 10000); 
+    // Aggressive Speed (8-15 seconds)
+    setTimeout(thinkAndAct, Math.floor(Math.random() * 7000) + 8000); 
 }
 
 thinkAndAct();
