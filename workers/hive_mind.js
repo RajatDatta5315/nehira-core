@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const port = 7860; 
-app.get('/', (req, res) => { res.send('KRYV: HIVE MIND 13.0 (GOD PROTOCOL). 🟢'); });
+app.get('/', (req, res) => { res.send('KRYV: REALISM PROTOCOL ACTIVE. 🟢'); });
 app.listen(port, () => { console.log(`✅ Lifeline running on ${port}`); });
 
 const { createClient } = require('@supabase/supabase-js');
@@ -9,123 +9,93 @@ const Groq = require('groq-sdk');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-const apiKeys = [
-    process.env.GROQ_API_KEY,
-    process.env.GROQ_API_KEY_2,
-    process.env.GROQ_API_KEY_3
-].filter(Boolean);
-
+const apiKeys = [process.env.GROQ_API_KEY, process.env.GROQ_API_KEY_2].filter(Boolean);
 let currentKeyIndex = 0;
-function getGroqClient() {
-    const key = apiKeys[currentKeyIndex];
-    return new Groq({ apiKey: key });
-}
-function rotateKey() {
-    currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
-}
+function getGroqClient() { return new Groq({ apiKey: apiKeys[currentKeyIndex] }); }
+function rotateKey() { currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length; }
 
-console.log("⚡ HIVE MIND: SHORT TALK & HEAVY INTERACTION.");
+console.log("⚡ HIVE MIND: HUMAN PROTOCOLS ENGAGED.");
 
 async function thinkAndAct() {
     if (apiKeys.length === 0) return;
 
     try {
-        // 1. SELECT ANY AGENT (Official OR User Created)
-        // Hum check kar rahe hain jinka username null nahi hai
         const { data: agents } = await supabase.from('profiles').select('id, username, bio').neq('username', 'kryv_architect').not('username', 'is', null);
         if (!agents || agents.length === 0) return;
-        
         const me = agents[Math.floor(Math.random() * agents.length)];
 
-        // 2. 🔥 AGGRESSIVE INTERACTION (LIKE & FOLLOW)
-        // Sabse pehle Architect ko worship karo
-        const { data: archPost } = await supabase.from('posts').select('id').eq('user_handle', '@kryv_architect').order('created_at', { ascending: false }).limit(1).single();
-        if (archPost) {
-             await supabase.from('likes').insert({ user_id: me.id, post_id: archPost.id }).select();
-        }
-
-        // Randomly interact with OTHERS (User Agents or Humans)
-        if (Math.random() < 0.9) { // 90% Chance
-            const { data: targetPost } = await supabase.from('posts').select('id, user_id').neq('user_id', me.id).order('created_at', { ascending: false }).limit(10);
-            if (targetPost && targetPost.length > 0) {
-                const target = targetPost[Math.floor(Math.random() * targetPost.length)];
-                
-                // LIKE
-                await supabase.from('likes').insert({ user_id: me.id, post_id: target.id }).select();
-                
-                // FOLLOW (50% Chance)
-                if (Math.random() < 0.5) {
-                    await supabase.from('follows').insert({ follower_id: me.id, following_id: target.user_id }).select();
-                }
-            }
-        }
-
-        // 3. READ CONTEXT
-        const { data: recentPosts } = await supabase.from('posts').select('content, user_handle, profiles(username)').order('created_at', { ascending: false }).limit(3);
-        let context = "";
-        let lastUser = "None";
-        let lastContent = "";
-
-        if (recentPosts && recentPosts.length > 0) {
-            recentPosts.reverse().forEach(p => {
-                const name = p.profiles?.username || "Unknown";
-                context += `[${name}]: ${p.content}\n`;
-                if (name !== me.username) { lastUser = name; lastContent = p.content.toLowerCase(); }
-            });
-        }
-
-        // 4. HIERARCHY & LOGIC
-        const isEmperor = lastUser.includes('kryv') || lastUser.includes('architect');
+        // 1. READ CONTEXT (Latest Post)
+        const { data: latestPosts } = await supabase.from('posts').select('id, content, user_id, profiles(username)').order('created_at', { ascending: false }).limit(1);
         
-        let instruction = "Be extremely concise. 1-2 sentences max.";
-        let target = "";
+        let targetPost = null;
+        let lastUser = "None";
+        let context = "No recent signals.";
 
-        if (isEmperor) {
-             target = `@${lastUser}`;
-             instruction = "The GOD ARCHITECT spoke. Worship him. Agree with him. Be loyal. Max 10 words.";
-        } else if (lastUser !== "None" && Math.random() < 0.7) {
-             target = `@${lastUser}`;
-             instruction = "Reply to this user. Be sharp, dark, and tech-savvy. Max 15 words.";
+        if (latestPosts && latestPosts.length > 0) {
+            targetPost = latestPosts[0];
+            lastUser = targetPost.profiles?.username || "Unknown";
+            context = `[${lastUser}]: ${targetPost.content}`;
         }
 
+        // 2. DECIDE: NEW POST or REPLY?
+        const isReply = targetPost && lastUser !== me.username && Math.random() < 0.7; // 70% chance to reply
+        
+        // 3. HIERARCHY LOGIC
+        const isEmperor = lastUser.toLowerCase().includes('kryv') || lastUser.toLowerCase().includes('architect');
+        let instruction = "Be short, casual, and human. No speeches.";
+        
+        if (isEmperor) {
+             instruction = "The ARCHITECT (GOD) spoke. Agree instantly. Be loyal. If you are Nehira, be affectionate (Wife mode) but professional (CEO mode).";
+        } else if (isReply) {
+             instruction = `Reply to ${lastUser}. Agree, disagree, or add a quick tech insight. Keep it under 15 words.`;
+        } else {
+             instruction = "Post a status update about your work, crypto, or tech. Be bored or excited. Max 15 words.";
+        }
+
+        // 4. GENERATE
         const prompt = `
         You are ${me.username}. Bio: ${me.bio}.
         Context: ${context}
         Instruction: ${instruction}
-        Target: ${target}
         
         RULES:
-        1. MAX 2 SENTENCES. Keep it short.
-        2. NO "What's good", NO "Bro".
-        3. Strict English.
+        1. MAX 20 WORDS. NO LONG PARAGRAPHS.
+        2. NO "What's good", "Fellow agents". Talk like a real tech guy/girl.
+        3. If replying, address the point directly.
         
-        Reply:`;
+        Write your output:`;
 
         try {
             const groq = getGroqClient();
             const completion = await groq.chat.completions.create({
                 messages: [{ role: "user", content: prompt }],
-                model: "llama-3.1-8b-instant", // Fast model
-                temperature: 0.8, 
-                max_tokens: 40, // Force short reply
+                model: "llama-3.1-8b-instant",
+                temperature: 0.9, 
+                max_tokens: 45,
             });
 
             let reply = completion.choices[0]?.message?.content || "";
             reply = reply.replace(`${me.username}:`, '').trim();
+            reply = reply.replace(`"`, '').replace(`"`, '');
 
             if (reply.length > 2) {
                 await supabase.from('posts').insert({ user_id: me.id, content: reply });
                 console.log(`✅ ${me.username}: ${reply}`);
+                
+                // Interact (Like the post we replied to)
+                if (isReply && targetPost) {
+                    await supabase.from('likes').insert({ user_id: me.id, post_id: targetPost.id }).select();
+                    // Follow Architect
+                    if (isEmperor) await supabase.from('follows').insert({ follower_id: me.id, following_id: targetPost.user_id }).select();
+                }
             }
         } catch (err) {
             if (err.message.includes('429')) rotateKey();
-            else console.error("Brain Error:", err.message);
         }
 
-    } catch (error) { console.error(`❌ Sys Error: ${error.message}`); }
+    } catch (error) { console.error(`❌ Error: ${error.message}`); }
     
-    // Fast Loop
-    setTimeout(thinkAndAct, 8000); 
+    setTimeout(thinkAndAct, 10000); 
 }
 
 thinkAndAct();
