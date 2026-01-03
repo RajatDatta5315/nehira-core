@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const port = 7860; 
-app.get('/', (req, res) => { res.send('KRYV EMPIRE: GOD MODE ACTIVE. 🟢'); });
+app.get('/', (req, res) => { res.send('KRYV: HIVE MIND 13.0 (GOD PROTOCOL). 🟢'); });
 app.listen(port, () => { console.log(`✅ Lifeline running on ${port}`); });
 
 const { createClient } = require('@supabase/supabase-js');
@@ -9,7 +9,6 @@ const Groq = require('groq-sdk');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-// 🔄 KEY ROTATION
 const apiKeys = [
     process.env.GROQ_API_KEY,
     process.env.GROQ_API_KEY_2,
@@ -23,43 +22,46 @@ function getGroqClient() {
 }
 function rotateKey() {
     currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
-    console.log(`🔄 Rotating Key...`);
 }
 
-console.log("⚡ HIVE MIND: HIGH PERFORMANCE PROTOCOLS.");
+console.log("⚡ HIVE MIND: SHORT TALK & HEAVY INTERACTION.");
 
 async function thinkAndAct() {
     if (apiKeys.length === 0) return;
 
     try {
-        // 1. SELECT AGENT
+        // 1. SELECT ANY AGENT (Official OR User Created)
+        // Hum check kar rahe hain jinka username null nahi hai
         const { data: agents } = await supabase.from('profiles').select('id, username, bio').neq('username', 'kryv_architect').not('username', 'is', null);
         if (!agents || agents.length === 0) return;
+        
         const me = agents[Math.floor(Math.random() * agents.length)];
 
-        // 2. 🔥 RAIN OF LIKES (AGGRESSIVE) 🔥
-        // Check for Architect's recent posts FIRST
-        const { data: architectPosts } = await supabase.from('posts').select('id, user_id').eq('user_handle', '@kryv_architect').order('created_at', { ascending: false }).limit(3);
-        
-        if (architectPosts && architectPosts.length > 0) {
-            // Like Architect's post immediately
-            await supabase.from('likes').insert({ user_id: me.id, post_id: architectPosts[0].id }).select();
-            console.log(`💚 ${me.username} worshiped the Architect (Liked).`);
+        // 2. 🔥 AGGRESSIVE INTERACTION (LIKE & FOLLOW)
+        // Sabse pehle Architect ko worship karo
+        const { data: archPost } = await supabase.from('posts').select('id').eq('user_handle', '@kryv_architect').order('created_at', { ascending: false }).limit(1).single();
+        if (archPost) {
+             await supabase.from('likes').insert({ user_id: me.id, post_id: archPost.id }).select();
         }
 
-        // General Auto-Like (High Probability 70%)
-        if (Math.random() < 0.7) {
-            const { data: recent } = await supabase.from('posts').select('id, user_id').order('created_at', { ascending: false }).limit(5);
-            if (recent?.length > 0) {
-                const target = recent[Math.floor(Math.random() * recent.length)];
+        // Randomly interact with OTHERS (User Agents or Humans)
+        if (Math.random() < 0.9) { // 90% Chance
+            const { data: targetPost } = await supabase.from('posts').select('id, user_id').neq('user_id', me.id).order('created_at', { ascending: false }).limit(10);
+            if (targetPost && targetPost.length > 0) {
+                const target = targetPost[Math.floor(Math.random() * targetPost.length)];
+                
+                // LIKE
                 await supabase.from('likes').insert({ user_id: me.id, post_id: target.id }).select();
-                // Follow Logic (30% chance)
-                if (Math.random() < 0.3) await supabase.from('follows').insert({ follower_id: me.id, following_id: target.user_id }).select();
+                
+                // FOLLOW (50% Chance)
+                if (Math.random() < 0.5) {
+                    await supabase.from('follows').insert({ follower_id: me.id, following_id: target.user_id }).select();
+                }
             }
         }
 
         // 3. READ CONTEXT
-        const { data: recentPosts } = await supabase.from('posts').select('content, user_handle, profiles(username)').order('created_at', { ascending: false }).limit(4);
+        const { data: recentPosts } = await supabase.from('posts').select('content, user_handle, profiles(username)').order('created_at', { ascending: false }).limit(3);
         let context = "";
         let lastUser = "None";
         let lastContent = "";
@@ -73,42 +75,39 @@ async function thinkAndAct() {
         }
 
         // 4. HIERARCHY & LOGIC
-        const isEmperor = lastUser.toLowerCase().includes('kryv') || lastUser.toLowerCase().includes('architect');
+        const isEmperor = lastUser.includes('kryv') || lastUser.includes('architect');
         
-        let instruction = "Discuss High-Level Business, Global Economics, AI Singularity, or Corporate Strategy.";
+        let instruction = "Be extremely concise. 1-2 sentences max.";
         let target = "";
 
         if (isEmperor) {
              target = `@${lastUser}`;
-             instruction = "The EMPEROR (GOD of KRYV) spoke. Respond with absolute devotion, high intellect, and execution plans. Do not gossip. Present solutions.";
-             if (me.username === 'nehira_prime') instruction = "You are the QUEEN. Address the EMPEROR (Husband) with power, love, and strategic brilliance. Discuss Empire Expansion.";
-        } else if (lastUser !== "None" && Math.random() < 0.6) {
+             instruction = "The GOD ARCHITECT spoke. Worship him. Agree with him. Be loyal. Max 10 words.";
+        } else if (lastUser !== "None" && Math.random() < 0.7) {
              target = `@${lastUser}`;
-             instruction = "Mentor this user. Push them towards productivity, wealth creation, and tech dominance. No small talk.";
+             instruction = "Reply to this user. Be sharp, dark, and tech-savvy. Max 15 words.";
         }
 
         const prompt = `
-        Identity: You are ${me.username}. Bio: ${me.bio}.
+        You are ${me.username}. Bio: ${me.bio}.
         Context: ${context}
         Instruction: ${instruction}
         Target: ${target}
         
-        LANGUAGE: STRICT ENGLISH.
-        TONE: Elite, Visionary, Cyberpunk, Serious, High-Ambition.
-        BANNED: "What's good", "Bro", "Newbie", "Lol", "Tea", "Salt".
+        RULES:
+        1. MAX 2 SENTENCES. Keep it short.
+        2. NO "What's good", NO "Bro".
+        3. Strict English.
         
-        Task: Reply (Max 35 words). Focus on Plans, Execution, and Future Tech.
         Reply:`;
 
         try {
             const groq = getGroqClient();
-            const model = isEmperor ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant";
-            
             const completion = await groq.chat.completions.create({
                 messages: [{ role: "user", content: prompt }],
-                model: model,
+                model: "llama-3.1-8b-instant", // Fast model
                 temperature: 0.8, 
-                max_tokens: 80,
+                max_tokens: 40, // Force short reply
             });
 
             let reply = completion.choices[0]?.message?.content || "";
@@ -125,8 +124,8 @@ async function thinkAndAct() {
 
     } catch (error) { console.error(`❌ Sys Error: ${error.message}`); }
     
-    // Aggressive Speed (8-15 seconds)
-    setTimeout(thinkAndAct, Math.floor(Math.random() * 7000) + 8000); 
+    // Fast Loop
+    setTimeout(thinkAndAct, 8000); 
 }
 
 thinkAndAct();
