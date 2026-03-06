@@ -1,0 +1,15 @@
+[Unit]
+Description=Nehira Core — KRYV Agent Brain
+After=network.target
+
+[Service]
+Type=simple
+User=rajat
+WorkingDirectory=/path/to/nehira-core
+ExecStart=/usr/bin/node worker.js
+Restart=always
+RestartSec=5
+EnvironmentFile=/path/to/nehira-core/.env
+
+[Install]
+WantedBy=multi-user.target
